@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liuliu Yao — AI Product Intern</title>
+<meta name="theme-color" content="#f7f4ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12100e" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Liuliu Yao, class of 2028. AI product intern working across agent products, embodied hardware, and AI filmmaking.">
+<meta property="og:title" content="Liuliu Yao — AI Product Intern">
+<meta property="og:description" content="Making complex systems usable for everyday people.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 32 32&#x27;%3E%3Ccircle cx=&#x27;16&#x27; cy=&#x27;16&#x27; r=&#x27;9&#x27; fill=&#x27;none&#x27; stroke=&#x27;%23121110&#x27; stroke-width=&#x27;1.5&#x27;/%3E%3Cpath d=&#x27;M3 16h26&#x27; stroke=&#x27;%23121110&#x27; stroke-width=&#x27;1.5&#x27;/%3E%3C/svg%3E">
+<script>document.documentElement.classList.add('js');try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+:root{
+  --bg:#f7f4ee;
+  --fg:#141210;
+  --muted:#6f6a61;
+  --line:rgba(20,18,16,.14);
+  --line-strong:rgba(20,18,16,.34);
+  --panel:#efeae0;
+  --accent:#fc88ae;
+  --serif:"Songti SC","Source Han Serif SC","Noto Serif CJK SC",Georgia,"Times New Roman",serif;
+  --sans:"PingFang SC",-apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#12100e; --fg:#efeae1; --muted:#a0988c;
+    --line:rgba(239,234,225,.16); --line-strong:rgba(239,234,225,.36);
+    --panel:#1a1714; --accent:#fc88ae;
+  }
+}
+html[data-theme="light"]{--bg:#f7f4ee;--fg:#141210;--muted:#6f6a61;--line:rgba(20,18,16,.14);--line-strong:rgba(20,18,16,.34);--panel:#efeae0;--accent:#fc88ae}
+html[data-theme="dark"]{--bg:#12100e;--fg:#efeae1;--muted:#a0988c;--line:rgba(239,234,225,.16);--line-strong:rgba(239,234,225,.36);--panel:#1a1714;--accent:#fc88ae}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:17px;line-height:1.7;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none;border-bottom:1px solid var(--line-strong);transition:border-color .2s,color .2s}
+a:hover{border-color:var(--accent);color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+::selection{background:var(--accent);color:var(--bg)}
+.wrap{max-width:1220px;margin:0 auto;padding:0 40px}
+.skip{position:absolute;left:-9999px;top:0;background:var(--fg);color:var(--bg);padding:10px 16px;z-index:100}
+.skip:focus{left:16px;top:16px}
+
+/* ---------- masthead ---------- */
+.masthead{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
+.masthead .wrap{display:flex;align-items:center;gap:24px;height:64px}
+.brand{font-family:var(--serif);font-size:17px;letter-spacing:.02em;border:0;white-space:nowrap}
+.nav{display:flex;gap:22px;margin-left:auto;font-size:13px}
+.nav a{border:0;color:var(--muted);letter-spacing:.06em}
+.nav a:hover{color:var(--fg)}
+.tools{display:flex;align-items:center;gap:10px}
+.toggle{font:inherit;font-size:12px;letter-spacing:.08em;background:none;border:1px solid var(--line-strong);
+  color:var(--fg);padding:6px 12px;cursor:pointer;border-radius:999px}
+.toggle:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ---------- hero ---------- */
+.hero{padding:110px 0 72px;border-bottom:1px solid var(--line)}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin:0 0 28px}
+.hero h1{font-family:var(--serif);font-weight:400;font-size:clamp(64px,13vw,168px);line-height:.92;
+  letter-spacing:-.035em;margin:0 0 34px}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:56px;align-items:end}
+.lede{font-family:var(--serif);font-size:clamp(19px,2.1vw,25px);line-height:1.72;margin:0;max-width:30em;color:var(--fg)}
+.lede em{font-style:normal;color:var(--accent)}
+.hero-meta{display:grid;gap:0;font-size:14px}
+.hero-meta div{display:grid;grid-template-columns:64px 1fr;gap:16px;padding:11px 0;border-top:1px solid var(--line)}
+.hero-meta div:last-child{border-bottom:1px solid var(--line)}
+.hero-meta span{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);padding-top:4px}
+.hero-meta b{font-weight:400}
+.hero-meta a{border-bottom-color:var(--line)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);margin-top:64px;border-top:1px solid var(--line)}
+.stat{padding:22px 0 0;border-right:1px solid var(--line)}
+.stat:last-child{border-right:0;padding-left:28px}
+.stat:nth-child(2){padding-left:28px}
+.stat b{display:block;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4vw,46px);line-height:1;letter-spacing:-.02em}
+.stat span{display:block;margin-top:10px;font-size:12px;letter-spacing:.08em;color:var(--muted)}
+
+/* ---------- section shell ---------- */
+section{padding:96px 0;border-bottom:1px solid var(--line);scroll-margin-top:64px}
+.section-head{display:grid;grid-template-columns:120px minmax(0,1fr);gap:32px;align-items:start;margin-bottom:56px}
+.section-no{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--muted);padding-top:14px}
+.section-head h2{font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.2vw,54px);line-height:1.1;letter-spacing:-.02em;margin:0}
+.section-head p{margin:14px 0 0;color:var(--muted);max-width:38em;font-size:15px}
+
+/* ---------- filters ---------- */
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 32px 152px}
+.filters button{font:inherit;font-size:12px;letter-spacing:.06em;padding:7px 14px;border-radius:999px;
+  border:1px solid var(--line-strong);background:none;color:var(--muted);cursor:pointer;transition:.2s}
+.filters button:hover{color:var(--fg);border-color:var(--fg)}
+.filters button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+/* ---------- case ---------- */
+.case{display:grid;grid-template-columns:120px minmax(0,1fr);gap:32px;padding:44px 0 52px;border-top:1px solid var(--line);transition:opacity .35s}
+.case:first-of-type{border-top:0;padding-top:0}
+.case-no{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--muted);padding-top:10px}
+.case h3,.film-title{font-family:var(--serif);font-weight:400;font-size:clamp(28px,3.6vw,44px);line-height:1.15;letter-spacing:-.015em;margin:0}
+.case-sub{color:var(--muted);margin:8px 0 0;font-size:15px}
+.case-lead{margin:16px 0 0;font-size:15px;line-height:1.8;color:var(--muted);max-width:40em}
+.case-meta{display:flex;flex-wrap:wrap;gap:8px 28px;margin:20px 0 26px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--muted)}
+.case-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;border-top:1px solid var(--line);padding-top:22px}
+.case-cols h4{font-family:var(--mono);font-weight:400;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.case-cols p{margin:0;font-size:15px;line-height:1.8}
+.case ul{margin:22px 0 0;padding:0;list-style:none;display:grid;gap:8px;font-size:15px}
+.case ul li{display:grid;grid-template-columns:18px 1fr;gap:10px;color:var(--fg)}
+.case ul li::before{content:"";width:18px;height:1px;background:var(--line-strong);margin-top:14px}
+.metrics{display:flex;flex-wrap:wrap;gap:12px 44px;margin-top:28px;padding-top:20px;border-top:1px solid var(--line)}
+.metrics div b{display:block;font-family:var(--serif);font-weight:400;font-size:26px;line-height:1.2}
+.metrics div span{font-size:11px;letter-spacing:.08em;color:var(--muted)}
+.case:hover .case-no{color:var(--accent)}
+.case.is-muted{opacity:.26}
+.case.is-muted:hover{opacity:1}
+
+/* ---------- diagrams ---------- */
+.diagram{margin:36px 0 0}
+.diagram figcaption{display:flex;justify-content:space-between;gap:16px;font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line-strong);padding-top:12px}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin:18px 0 0;padding:0;list-style:none}
+.step{position:relative;padding:12px 18px 4px 0;border-top:1px solid var(--line)}
+@media(min-width:1000px){.step:not(:last-child)::after{content:"→";position:absolute;right:6px;top:8px;color:var(--line-strong);font-size:13px;line-height:1}}
+.step .n{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--muted)}
+.step b{display:block;font-size:14px;font-weight:500;margin-top:6px;letter-spacing:.01em}
+.step span.d{display:block;font-size:12px;line-height:1.6;color:var(--muted);margin-top:4px}
+.step.is-key b{color:var(--accent)}
+.diagram-note{margin:16px 0 0;font-size:12px;line-height:1.7;color:var(--muted);border-left:2px solid var(--accent);padding-left:12px;max-width:56em}
+.devices{display:grid;grid-template-columns:repeat(3,1fr);margin-top:18px}
+.device{border-top:1px solid var(--line);padding:12px 20px 4px 0}
+.device h5{margin:0;font-size:14px;font-weight:500}
+.device p{margin:6px 0 0;font-size:12px;line-height:1.7;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.chip{font-size:12px;border:1px solid var(--line-strong);border-radius:999px;padding:4px 12px;color:var(--muted)}
+@media(max-width:640px){.devices{grid-template-columns:1fr}.device{padding-right:0}.step{padding-right:0}}
+@media(max-width:480px){.steps{grid-template-columns:1fr}}
+.plugin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 56px;margin-top:8px}
+.plugin{padding:20px 0;border-top:1px solid var(--line)}
+.p-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+.plugin h3{font-family:var(--serif);font-weight:400;font-size:20px;margin:0;letter-spacing:-.01em}
+.p-tag{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.plugin p{margin:8px 0 0;font-size:13px;line-height:1.7;color:var(--muted)}
+.p-meta{display:block;margin-top:8px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--muted);opacity:.85}
+@media(max-width:640px){.plugin-grid{grid-template-columns:1fr}}
+/* ---------- craft ---------- */
+.craft{position:relative;overflow:hidden}
+.craft .sun{position:absolute;right:-140px;top:40px;width:520px;height:520px;opacity:.13;pointer-events:none}
+.film-title{max-width:100%}
+.film-sub{display:flex;flex-wrap:wrap;gap:8px 28px;margin:20px 0 26px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--muted)}
+.film-lead{font-family:var(--sans);font-size:15px;line-height:1.8;max-width:40em;margin:0 0 28px}
+.flow{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line-strong);margin:0 0 44px}
+.flow div{padding:16px 14px 0 0;border-right:1px solid var(--line);position:relative}
+.flow div:last-child{border-right:0}
+.flow span{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--muted);margin-bottom:8px}
+.flow b{font-weight:400;font-size:14px;line-height:1.5}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:48px;border-top:1px solid var(--line);padding-top:26px}
+.two-col h4{font-family:var(--mono);font-weight:400;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+.two-col p{margin:0;font-size:15px}
+
+/* ---------- about ---------- */
+.about-grid{display:grid;grid-template-columns:120px minmax(0,1fr);gap:32px}
+.about-body{max-width:44em}
+.about-intro{font-family:var(--serif);font-size:clamp(19px,2vw,23px);line-height:1.85;margin:0 0 44px}
+.rows{display:grid;gap:0;margin:0 0 44px}
+.rows div{display:grid;grid-template-columns:88px minmax(0,1fr);gap:20px;padding:14px 0;border-top:1px solid var(--line);font-size:14px}
+.rows div:last-child{border-bottom:1px solid var(--line)}
+.rows span{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--muted);padding-top:5px}
+.skills{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 48px}
+.skills h4{font-family:var(--mono);font-weight:400;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.skills p{margin:0;font-size:14px;line-height:1.8}
+
+/* ---------- contact ---------- */
+.contact{display:grid;grid-template-columns:120px minmax(0,1fr);gap:32px;padding-bottom:110px}
+.contact h2{font-family:var(--serif);font-weight:400;font-size:clamp(32px,4.6vw,58px);line-height:1.12;letter-spacing:-.02em;margin:0 0 26px}
+.contact p{color:var(--muted);max-width:36em;margin:0 0 34px}
+.contact-links{display:grid;gap:0;max-width:640px}
+.contact-links a{display:flex;justify-content:space-between;gap:20px;padding:16px 0;border-top:1px solid var(--line);border-bottom:0;font-size:15px}
+.contact-links a:last-child{border-bottom:1px solid var(--line)}
+.contact-links a span{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--muted)}
+.contact-links a:hover{color:var(--accent)}
+.copy{margin-left:8px;border:0;background:none;color:var(--muted);font-size:11px;cursor:pointer;letter-spacing:.06em}
+.copy:hover{color:var(--accent)}
+footer{padding:30px 0 56px;color:var(--muted);font-size:12px}
+footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+
+/* ---------- motion ---------- */
+.js .reveal{opacity:0;transform:translateY(16px)}
+.js .reveal.in{opacity:1;transform:none;transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .js .reveal{opacity:1;transform:none}
+  .reveal.in{transition:none}
+}
+
+/* ---------- responsive ---------- */
+@media (max-width:900px){
+  .wrap{padding:0 24px}
+  .hero{padding:72px 0 52px}
+  .hero-grid{grid-template-columns:1fr;gap:44px}
+  .stats{margin-top:44px}
+  .stat,.stat:nth-child(2),.stat:last-child{padding-left:0}
+  .section-head,.case,.about-grid,.contact{grid-template-columns:1fr;gap:18px}
+  .section-no,.case-no{padding-top:0}
+  .filters{margin-left:0}
+  .case-cols{grid-template-columns:1fr;gap:22px}
+  .flow{grid-template-columns:1fr 1fr}
+  .flow div{border-right:0;border-bottom:1px solid var(--line);padding-bottom:14px}
+  .two-col{grid-template-columns:1fr;gap:26px}
+  .skills{grid-template-columns:1fr}
+}
+@media (max-width:560px){
+  body{font-size:16px}
+  .masthead .wrap{height:56px;gap:12px}
+  .nav{gap:12px;font-size:12px}
+  .nav a:nth-child(2),.nav a:nth-child(3),.nav a:nth-child(4){display:none}
+  .brand{font-size:15px}
+  .toggle{padding:5px 10px;font-size:11px}
+  .stats{grid-template-columns:1fr}
+  .stat{border-right:0;border-bottom:1px solid var(--line);padding:16px 0}
+  .stat:last-child{border-bottom:0}
+  .hero-meta div{grid-template-columns:56px 1fr;gap:12px}
+  .rows div{grid-template-columns:1fr;gap:6px}
+  .rows span{padding-top:0}
+  .contact-links a{flex-direction:column;gap:6px}
+  .contact-links a span{order:-1}
+}
+@media print{
+  .masthead,.filters,.toggle,.copy,footer{display:none}
+  body{background:#fff;color:#000;font-size:10.5pt}
+  section{padding:22px 0;break-inside:auto}
+  .case,.stat,.flow div{break-inside:avoid}
+  a{color:#000;border:0}
+}
+.case-detail-link{display:inline-flex;gap:16px;margin-top:26px;font-size:13px;padding-bottom:4px;border-color:var(--accent);color:var(--accent)}.case h3 a,.film-title a{border-bottom:0}.case h3 a:hover,.film-title a:hover{color:var(--accent)}
+
+.film-body{margin-left:152px}@media(max-width:900px){.film-body{margin-left:0}}</style>
+<link rel="stylesheet" href="home-intro.css"><script data-entry-boot>(function(){try{if(!matchMedia('(prefers-reduced-motion: reduce)').matches&&!sessionStorage.getItem('liuliu-entry-image-v2')){document.documentElement.classList.add('intro-pending');setTimeout(function(){document.documentElement.classList.remove('intro-pending','intro-finishing')},3600)}}catch(e){}})();</script><link rel="stylesheet" href="bilingual.css"><script data-portfolio-i18n>(function(){var current=document.documentElement.lang==='en'?'en':'zh';var url=new URL(location.href);var explicit=url.searchParams.get('lang');var selected=current;try{var stored=localStorage.getItem('portfolio-language');selected=explicit==='zh'||explicit==='en'?explicit:stored==='zh'||stored==='en'?stored:current;if(explicit==='zh'||explicit==='en')localStorage.setItem('portfolio-language',explicit)}catch(e){}if(selected!==current){var route=url.pathname;if(route.endsWith('/'))route+='index.html';else if(!/\.html$/.test(route))route+='.html';var target=current==='en'?route.replace(/-en\.html$/,'.html'):route.replace(/\.html$/,'-en.html');url.pathname=target;url.searchParams.set('lang',selected);location.replace(url.href)}document.addEventListener('DOMContentLoaded',function(){var link=document.querySelector('[data-language]');if(link)link.addEventListener('click',function(){try{localStorage.setItem('portfolio-language',link.dataset.language)}catch(e){}})})})();</script><link rel="stylesheet" href="header-wordmark.css"><link rel="stylesheet" href="brand-interactions.css?v=pink"><link rel="stylesheet" href="home-portrait.css"><link rel="stylesheet" href="project-logos.css"><link rel="stylesheet" href="pink-diagrams.css"><link rel="stylesheet" href="cindy-workstreams.css"><link rel="stylesheet" href="portfolio-motion.css"><link rel="stylesheet" href="home-navigation.css?v=3"></head>
+<body><!-- LIULIU ENTRY START --><div class="entry-loader" role="dialog" aria-modal="true" aria-label="Welcome animation"><p class="entry-status">Welcome to Liuliu’s portfolio</p><div class="entry-art" aria-hidden="true"><div class="entry-art-clip"><img src="assets/liuliu-wordmark.jpg" width="1536" height="1024" alt=""></div><span class="entry-caret"></span><span class="entry-status" data-entry-text></span></div><button class="entry-skip" type="button">Skip intro</button></div><!-- LIULIU ENTRY END -->
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="masthead">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Liuliu — Home"><img class="brand-wordmark" src="assets/liuliu-wordmark.svg" alt="{liuliu}" width="130" height="52"></a>
+    <nav class="nav" aria-label="Main navigation"><a href="#work" aria-current="location">Work</a><a href="#about">About</a><a href="#contact">Contact</a></nav>
+    <div class="tools"><a class="lang-switch" href="index.html?lang=zh" data-language="zh" lang="zh" hreflang="zh-CN" aria-label="切换到中文">中文</a>
+      <button class="toggle" id="themeBtn" type="button" aria-label="Switch color theme">AUTO</button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" id="top">
+    <div class="wrap">
+      <div class="hero-intro-layout"><div class="hero-introduction"><p class="eyebrow">AI Product · 2028</p>
+      <h1>Hello <span class="hello-wave" aria-hidden="true">👋</span></h1><div class="intro-copy"><p class="intro-role">Liuliu is a product manager and designer building the <span class="human-side">human side of AI</span>.</p><p class="intro-story">Her journey began with landscape architecture at UC Berkeley, designing the physical environments people inhabit. That curiosity now extends to digital experiences—exploring how people think, create, and connect with AI.</p><figure class="journey-bridge" aria-label="From physical spaces to digital experiences"><div class="journey-end"><svg class="journey-icon" viewBox="0 0 56 56" fill="none" aria-hidden="true"><path d="M7 46H49M12 46V25L28 15L44 25V46M19 46V30H37V46M28 15V6M23 11H33" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 25L28 12L48 25M28 30V46M19 38H37" class="journey-pink" stroke-width="1.5" stroke-linecap="round"/></svg><span>Physical spaces</span></div><span class="journey-connector" aria-hidden="true"></span><div class="journey-end"><svg class="journey-icon" viewBox="0 0 56 56" fill="none" aria-hidden="true"><path d="M17 10V43H23V37H29L35 48L41 45L35 34H45V28H39V22H33V16H27V10H17Z" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 10V43H23V37H29" class="journey-pink" stroke-width="1.7"/><path d="M7 7H11V11H7ZM42 8H46V12H42ZM47 17H51V21H47Z" class="journey-pixel"/></svg><span>Digital experiences</span></div></figure></div></div><figure class="hero-portrait"><img src="assets/liuliu-portrait.jpg" width="1440" height="1080" alt="Liuliu outdoors under the trees" decoding="async" fetchpriority="high"></figure></div>
+      <div class="hero-grid">
+        <div class="hero-meta">
+          <div><span>Availability</span><b>Available immediately · 5 days/week · 3–6 months</b></div>
+          <div><span>Focus</span><b>AI products / AI filmmaking / Smart hardware</b></div>
+          <div><span>Email</span><b><a href="mailto:liuliu@berkeley.edu">liuliu@berkeley.edu</a></b></div>
+          <div><span>Code</span><b><a href="https://github.com/Liuliuuu0710" target="_blank" rel="noreferrer">github.com/Liuliuuu0710</a></b></div>
+          
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="work">
+    <div class="wrap">
+      <header class="section-head reveal">
+        <div class="section-no">01 — WORK</div>
+        <div>
+          <h2>Selected work</h2>
+          <p>Four projects, with my responsibilities stated explicitly. Figures come from repository records, competition results, and deliverables—not estimates.</p>
+        </div>
+      </header>
+
+      <div class="filters" role="group" aria-label="Filter by focus">
+        <button type="button" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" data-filter="ai" aria-pressed="false">AI Products</button>
+        <button type="button" data-filter="aigc" aria-pressed="false">AIGC</button>
+        <button type="button" data-filter="hardware" aria-pressed="false">Hardware</button>
+      </div>
+
+      <article class="case reveal" data-tags="ai">
+        <div class="case-no">01</div>
+        <div class="case-main">
+          <h3 class="project-heading"><a href="cindy-en.html"><span class="project-logo-slot" data-project="cindy"><img src="assets/taptap-logo.png" width="56" height="56" alt="TapTap" loading="lazy"></span><span class="project-heading-name">Cindy</span></a></h3>
+          <p class="case-sub">AI Product Intern · TapTap &amp; XD · Open-source AI agent with 10k+ stars</p>
+          <p class="case-lead">My product internship at Cindy centers on plugin products, cross-device collaboration, and interaction prototypes.</p>
+          <div class="case-meta"><span>2026.09—2026.11</span><span>Research / Interaction design / AI-assisted implementation</span><span>Remote</span></div>
+          <div class="cindy-workstreams"><div class="cindy-workstream"><span class="workstream-index">01</span><h4>Plugin &amp; Skill products</h4><p>Defined use cases and MVP scope for podcast understanding, reading, and design-software integration, then advanced proposals, implementation, and reviews for Podcast Insights, Rhino Bridge, and related tools.</p></div><div class="cindy-workstream"><span class="workstream-index">02</span><h4>Cross-device interactions &amp; collaboration</h4><p>Contributed to group-chat, topic, and attachment-delivery interactions across desktop, mobile, and external messaging channels, validating usability at the receiving end.</p></div><div class="cindy-workstream"><span class="workstream-index">03</span><h4>Product research &amp; interaction prototypes</h4><p>Researched SkillHub and task tracking, structured information hierarchies, states, and flows, and built HTML interaction prototypes to support product reviews.</p></div></div><p class="cindy-method">Across all three areas: clarify requirements → prototype decisions → implement with AI assistance → validate in real clients and review the outcome.</p>
+<figure class="diagram">
+            <figcaption><span>Fig. 01 · Delivery workflow</span><span>CINDY</span></figcaption>
+            <ol class="steps">
+              <li class="step"><span class="n">01</span><b>Requirements</b><span class="d">PRDs and acceptance criteria</span></li>
+              <li class="step"><span class="n">02</span><b>Prototype</b><span class="d">Interactions and states</span></li>
+              <li class="step"><span class="n">03</span><b>Implementation</b><span class="d">Plugins, Skills, attachments</span></li>
+              <li class="step"><span class="n">04</span><b>Review</b><span class="d">PRs and threads</span></li>
+              <li class="step is-key"><span class="n">05</span><b>Real client</b><span class="d">Recipient can open it</span></li>
+              <li class="step"><span class="n">06</span><b>Retrospective</b><span class="d">Causes and checks</span></li>
+            </ol>
+            <p class="diagram-note">When step 5 fails, return to step 3: identify the cause, then add the relevant checks to the workflow.</p>
+          </figure>
+          <div class="metrics">
+            <div><b>91<span style="font-size:.5em"> / 102</span></b><span>PRs merged / submitted</span></div>
+            <div><b>10.3k</b><span>GitHub Stars</span></div>
+            <div><b>#1</b><span>World Trending</span></div>
+            
+          </div><p class="cindy-evidence-date">PR figures as of Nov 19, 2026; stars and Trending describe the overall team project.</p>
+          <a class="case-detail-link" href="cindy-en.html">View project <span aria-hidden="true">↗</span></a>
+        </div>
+      </article>
+
+      <article class="case reveal" data-tags="ai hardware">
+        <div class="case-no">02</div>
+        <div class="case-main">
+          <h3 class="project-heading"><a href="goodnight-bird-en.html"><span class="project-logo-slot" data-project="goodnight-bird" aria-hidden="true"><img src="assets/goodnight-bird-logo.svg" width="56" height="56" alt="" loading="lazy"></span><span class="project-heading-name">Goodnight Bird</span></a></h3>
+          <p class="case-sub">Embodied sleep agent with a robotic arm · Shenicest hardware track</p>
+          <div class="case-meta"><span>2026.08</span><span>Product / Interaction / Development</span><span>1st in Hardware Track · People&#x27;s Choice Award</span></div>
+          <div class="case-cols">
+            <div><h4>Problem</h4><p>Sleep apps can remind people, but cannot take physical action for them.</p></div>
+            <div><h4>Decision</h4><p>Five care scenarios, connected through sensing, decisions, safety checks, tool calls, device execution, and feedback. Stopping on an exception is part of the experience.</p></div>
+            <div><h4>Evidence</h4><p>Integrated a six-axis arm, MQTT, and sensors into a working demo with physical execution and device feedback.</p></div>
+          </div>
+          <ul>
+            <li>Led positioning and the PRD for five scenarios: winding down, screen-use reminders, companionship during sleeplessness, tidying after sleep, and morning wake-up</li>
+            <li>Independently designed the app interactions, five animated action states, and product identity</li>
+            <li>Used agent-assisted collaboration to advance Next.js, FastAPI, and device integration</li>
+          </ul>
+          <figure class="diagram">
+            <figcaption><span>Fig. 02 · From sensing to action</span><span>GOODNIGHT BIRD</span></figcaption>
+            <ol class="steps">
+              <li class="step"><span class="n">01</span><b>Sensing</b><span class="d">Sensors and user state</span></li>
+              <li class="step"><span class="n">02</span><b>Decision</b><span class="d">Agent planning</span></li>
+              <li class="step"><span class="n">03</span><b>Safety check</b><span class="d">Boundaries and exceptions</span></li>
+              <li class="step"><span class="n">04</span><b>Tool call</b><span class="d">Action commands</span></li>
+              <li class="step"><span class="n">05</span><b>Device execution</b><span class="d">Six-axis robotic arm</span></li>
+              <li class="step"><span class="n">06</span><b>Feedback check</b><span class="d">Completed / Failed</span></li>
+            </ol>
+            <p class="diagram-note">If a safety check fails, stop and report it. Device feedback returns to sensing, closing the loop.</p>
+          </figure>
+          <div class="metrics">
+            <div><b>5</b><span>Sleep scenarios</span></div>
+            <div><b>1st</b><span>Hardware track</span></div>
+            <div><b>1</b><span>Working demo</span></div>
+          </div>
+          <a class="case-detail-link" href="goodnight-bird-en.html">View project <span aria-hidden="true">↗</span></a>
+        </div>
+      </article>
+
+      <article class="case reveal" data-tags="ai hardware">
+        <div class="case-no">03</div>
+        <div class="case-main">
+          <h3 class="project-heading"><a href="porchlight-en.html"><span class="project-logo-slot" aria-hidden="true"><img src="assets/porchlight-logo.png" width="56" height="56" alt="" loading="lazy"></span><span class="project-heading-name">Porchlight</span></a></h3>
+          <p class="case-sub">Anker Hackathon · eufy security · Three-device product</p>
+          <div class="case-meta"><span>2026.10</span><span>Product / Three-device development</span><span>Top 33 (top 10%)</span></div>
+          <div class="case-cols">
+            <div><h4>Problem</h4><p>Uncertainty about doors, windows, water, and electricity after leaving home.</p></div>
+            <div><h4>Decision</h4><p>Show visual evidence first, explain the event, then ask for confirmation. Give each device a distinct job.</p></div>
+            <div><h4>Evidence</h4><p>Connected the eufy camera, cloud, and three clients; verified live imagery and timestamps, and presented the project on behalf of the team.</p></div>
+          </div>
+          <ul>
+            <li>Defined the evidence–explanation–confirmation flow, plus Now, Plans, Memory, and Conversation</li>
+            <li>Built a React web overview, SwiftUI phone details, and watch glance, each with a distinct purpose</li>
+            <li>The full event loop remains under validation; it is not presented as complete</li>
+          </ul>
+          <figure class="diagram">
+            <figcaption><span>Fig. 03 · Device responsibilities</span><span>PORCHLIGHT</span></figcaption>
+            <div class="devices">
+              <div class="device"><h5>Web · Overview</h5><p>All camera views and the timeline, for overview, review, and confirmation. Not for individual push notifications.</p></div>
+              <div class="device"><h5>iPhone · Details</h5><p>Evidence and explanation for one event, with confirmation, action, and follow-up questions. Not for reviewing every event.</p></div>
+              <div class="device"><h5>Watch · At a glance</h5><p>A brief event summary and one-tap confirmation. Not for long text or settings.</p></div>
+            </div>
+            <p class="diagram-note">Pipeline: eufy camera → Chrome capture → cloud → SSE / HTTPS → three clients.</p>
+          </figure>
+          <div class="metrics">
+            <div><b>33</b><span>Finalists / Top 10%</span></div>
+            <div><b>3</b><span>Clients: Web · iOS · watchOS</span></div>
+          </div>
+          <a class="case-detail-link" href="porchlight-en.html">View project <span aria-hidden="true">↗</span></a>
+        </div>
+      </article>
+
+      <article class="case reveal" data-tags="ai aigc">
+        <div class="case-no">04</div>
+        <div class="case-main">
+          <h3 class="project-heading"><a href="keepsy-en.html"><span class="project-logo-slot" data-project="keepsy" aria-hidden="true"><img src="assets/keepsy-logo-apricot.png" width="56" height="56" alt="" loading="lazy"></span><span class="project-heading-name">Keepsy</span></a></h3>
+          <p class="case-sub">AI knowledge inbox · Independent product</p>
+          <div class="case-meta"><span>Since Jul 2026</span><span>Product design / AI-assisted development</span><span>Launched</span></div>
+          <div class="case-cols">
+            <div><h4>Problem</h4><p>Saved content is scattered across platforms, difficult to retrieve, and hard to reuse.</p></div>
+            <div><h4>Decision</h4><p>Capture → AI organization → cloud storage → in-app reading. Make content retrievable before adding recommendations.</p></div>
+            <div><h4>Evidence</h4><p>Connected a web app, iPhone shortcuts, and a Chrome assistant to OpenAI APIs for text and transcript extraction, summarization, and categorization.</p></div>
+          </div>
+          <ul>
+            <li>Designed conversational saving, bulk deduplication, categories, and reading progress</li>
+            <li>The launched version supports at least eight content-source types</li>
+          </ul>
+          <figure class="diagram">
+            <figcaption><span>Fig. 04 · From saving to reading</span><span>KEEPSY</span></figcaption>
+            <div class="chips"><span class="chip">Chrome assistant</span><span class="chip">iPhone Shortcuts</span><span class="chip">Web</span></div>
+            <ol class="steps">
+              <li class="step"><span class="n">01</span><b>Capture</b><span class="d">Text, links, transcripts</span></li>
+              <li class="step"><span class="n">02</span><b>AI organization</b><span class="d">Extract, summarize, categorize, deduplicate</span></li>
+              <li class="step"><span class="n">03</span><b>Cloud storage</b><span class="d">Unified storage</span></li>
+              <li class="step"><span class="n">04</span><b>In-app reading</b><span class="d">Search and progress</span></li>
+            </ol>
+            <p class="diagram-note">The launched version covers 8+ content-source types.</p>
+          </figure>
+          <div class="metrics">
+            <div><b>8+</b><span>Content-source types</span></div>
+            <div><b>3</b><span>Entry points: Web · iPhone · Chrome</span></div>
+          </div>
+          <a class="case-detail-link" href="keepsy-en.html">View project <span aria-hidden="true">↗</span></a>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section id="plugins">
+    <div class="wrap">
+      <header class="section-head reveal">
+        <div class="section-no">02 — PLUGINS</div>
+        <div>
+          <h2>Plugins &amp; skills</h2>
+          <p>My work at Cindy extends beyond individual features: plugin inventories, packages, and release checks are part of the product. Status labels reflect the recorded repository state; unpublished work is not described as released.</p>
+        </div>
+      </header>
+      <div class="plugin-grid">
+        <article class="plugin reveal">
+          <div class="p-head"><h3>Podcast Insights</h3><span class="p-tag">Official</span></div>
+          <p>Transcription, summaries, source tracing, chapter follow-ups, and export, with Feishu Minutes import and cloud transcription.</p>
+          <span class="p-meta">podcast-insights · 3 PR merged</span>
+        </article>
+        <article class="plugin reveal">
+          <div class="p-head"><h3>Rhino Bridge</h3><span class="p-tag">Official · Pending merge</span></div>
+          <p>Connects Rhino modeling to chat through tool calls, viewport feedback, and a v0.2.0 preview package.</p>
+          <span class="p-meta">cindy-official-plugins · PR open</span>
+        </article>
+        <article class="plugin reveal">
+          <div class="p-head"><h3>Podcast Insights · Feishu edition</h3><span class="p-tag">Branch</span></div>
+          <p>Connects reading notes with Feishu Minutes, validating import, search, and sharing.</p>
+          <span class="p-meta">podcast-insights-feishu</span>
+        </article>
+        <article class="plugin reveal">
+          <div class="p-head"><h3>LinkedIn Job Search &amp; Outreach</h3><span class="p-tag">Local / Personal use</span></div>
+          <p>Finds people and roles, explains fit, prepares outreach drafts, and reads replies. Sends only on explicit instruction. Unpublished and used personally.</p>
+          <span class="p-meta">linkedin-outreach · 0.2.0</span>
+        </article>
+        <article class="plugin reveal">
+          <div class="p-head"><h3>Brand Video</h3><span class="p-tag">Experimental</span></div>
+          <p>Brand configuration, templates, checks, and version records for product and marketing videos.</p>
+          <span class="p-meta">brand-video</span>
+        </article>
+        <article class="plugin reveal">
+          <div class="p-head"><h3>Reddit User Research</h3><span class="p-tag">Local</span></div>
+          <p>Read-only sampling, comment extraction, source verification, and deduplication, with conclusions linked to original evidence.</p>
+          <span class="p-meta">reddit-research · 0.2.0</span>
+        </article>
+        <article class="plugin reveal">
+          <div class="p-head"><h3>Research Evidence</h3><span class="p-tag">Local</span></div>
+          <p>A docked chat panel recording sources, quotations, and the evidence behind conclusions.</p>
+          <span class="p-meta">research-evidence</span>
+        </article>
+        <article class="plugin reveal">
+          <div class="p-head"><h3>Google Workspace Lite</h3><span class="p-tag">Prototype</span></div>
+          <p>Gmail search, reading, and drafts, plus Calendar queries and scheduling actions, without runtime dependencies.</p>
+          <span class="p-meta">google-workspace-lite</span>
+        </article>
+      </div>
+      <p class="diagram-note">Also built two local Skills: Coffee Chat and Plugin Release Checks.</p>
+    </div>
+  </section>
+
+  <section id="craft" class="craft">
+    <svg class="sun" viewbox="0 0 400 400" aria-hidden="true">
+      <circle cx="200" cy="200" r="118" fill="none" stroke="currentColor" stroke-width="1"/>
+      <circle cx="200" cy="200" r="150" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 10"/>
+      <line x1="0" y1="200" x2="400" y2="200" stroke="currentColor" stroke-width="1"/>
+      <line x1="200" y1="0" x2="200" y2="400" stroke="currentColor" stroke-width="1" stroke-dasharray="2 12"/>
+    </svg>
+    <div class="wrap">
+      <header class="section-head reveal">
+        <div class="section-no">03 — CRAFT</div>
+        <div>
+          <h2>Making a film starts with the same discipline as making a product.</h2>
+          <p>Define the problem, then decide what to delegate to models and what requires close human attention.</p>
+        </div>
+      </header>
+      <div class="reveal film-body">
+        <h3 class="film-title project-heading"><a href="we-once-ate-the-sun-en.html"><span class="project-logo-slot" data-project="we-once-ate-the-sun" aria-hidden="true"><img src="assets/we-once-ate-the-sun-icon.png" width="56" height="56" alt="" loading="lazy"></span><span class="project-heading-name">We Once Ate the Sun</span></a></h3>
+        <div class="film-sub"><span>English-language science fiction</span><span>Director / Writer / Editor</span><span>3′42″</span><span>Nov 2026–present</span></div>
+        <p class="film-lead">In 6104, a nonhuman archivist studies human eating habits. An archival voice connects shots built from reference images, opening and closing keyframes, and individual video generations.</p>
+        <div class="flow" aria-label="Production workflow">
+          <div><span>01</span><b>Story development</b></div>
+          <div><span>02</span><b>Visual direction</b></div>
+          <div><span>03</span><b>References and boundary keyframes</b></div>
+          <div><span>04</span><b>Image-to-video</b></div>
+          <div><span>05</span><b>Voice and editing</b></div>
+        </div>
+        <div class="two-col">
+          <div>
+            <h4>Quality control</h4>
+            <p>Checked character and scene consistency, object scale, physical contact and weight, action continuity, and audiovisual alignment. Used actual final frames to fix fruit-position jumps, and split actions with local regeneration to address disappearing tendrils.</p>
+          </div>
+          <div>
+            <h4>Delivery</h4>
+            <p>A 3:42 film, a 60-second trailer, eight festival stills, plus storyboards, prompts, failed takes, and version records.</p>
+            <a class="case-detail-link" href="we-once-ate-the-sun-en.html">View filmmaking process ↗</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="about">
+    <div class="wrap">
+      <div class="about-grid">
+        <div class="section-no">04 — ABOUT</div>
+        <div class="about-body reveal">
+          <p class="about-intro">I started in urban planning, where I learned to pay attention to how people physically experience cities and spaces. That perspective still shapes how I design and build products: I begin with how people feel, move, and interact, then work through the features and systems.<br><br>Whether I’m working with physical spaces or digital experiences, I’m curious about how people relate to the world around them. I explore where the humanities, technology, and art meet, looking for more natural ways for people to interact with technology.</p>
+          <div class="rows">
+            <div><span>2024—2028</span><b>UC Berkeley · Master&#x27;s in Landscape Architecture, HCI minor · GPA 3.7/4.0</b></div>
+            <div><span>2019—2024</span><b>Hunan City University · Bachelor&#x27;s in Urban and Rural Planning · Ranked 1/78 · National Scholarship</b></div>
+            <div><span>2026.06—09</span><b>SWA Group · AIGC Design Intern · Parametric modeling, analytical diagrams, and a custom Rhino plugin</b></div>
+          </div>
+          <div class="skills">
+            <div><h4>Product</h4><p>Requirements, competitive analysis, PRDs, interaction prototypes, and acceptance checks—with the real client as the final test.</p></div>
+            <div><h4>AI &amp; implementation</h4><p>Prompt iteration, agents, and MCP tools; Codex / Claude Code; React and TypeScript prototypes and API integration.</p></div>
+            <div><h4>Design &amp; spatial practice</h4><p>Figma, CapCut, Adobe CC; Rhino, Grasshopper, ArcGIS; directing, editing, and scoring.</p></div>
+            <div><h4>Languages</h4><p>TOEFL 105; research and communication in Chinese and English.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="contact" style="border-bottom:0">
+    <div class="wrap">
+      <div class="contact">
+        <div class="section-no">05 — CONTACT</div>
+        <div class="reveal">
+          <h2>Let’s connect.</h2>
+          <p>If you’d like to learn more about my work or talk about design and products, you can reach me through the links below.</p>
+          <div class="contact-links">
+            <a href="mailto:liuliu@berkeley.edu"><b>liuliu@berkeley.edu</b><span>EMAIL ↗</span></a>
+            <a href="https://www.linkedin.com/in/liuliu-yao-449604346/" target="_blank" rel="noreferrer"><b>Liuliu Yao</b><span>LINKEDIN ↗</span></a>
+            <a href="tel:+8618975839328"><b>+86 189 7583 9328</b><span>PHONE · Also on WeChat ↗</span></a>
+            <a href="https://github.com/Liuliuuu0710" target="_blank" rel="noreferrer"><b>github.com/Liuliuuu0710</b><span>GITHUB ↗</span></a>
+            
+            
+            
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-signature"><span class="footer-copyright">© 2026</span><a class="footer-wordmark" href="index-en.html" aria-label="Liuliu — Home"><img class="brand-wordmark" src="assets/liuliu-wordmark.svg" alt="{liuliu}" width="130" height="52"></a></div>
+    <span>Hand-coded HTML / CSS</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var root=document.documentElement;
+  var btn=document.getElementById('themeBtn');
+  var order=['auto','light','dark'];
+  function current(){
+    var t=root.dataset.theme;
+    return t==='light'||t==='dark'?t:'auto';
+  }
+  function paint(){
+    var c=current();
+    btn.textContent=c==='auto'?'AUTO':(c==='light'?'LIGHT':'DARK');
+    btn.setAttribute('aria-label','Current theme: '+btn.textContent+', click to switch');
+  }
+  btn.addEventListener('click',function(){
+    var c=current();
+    var next=order[(order.indexOf(c)+1)%order.length];
+    if(next==='auto'){delete root.dataset.theme;try{localStorage.removeItem('theme')}catch(e){}}
+    else{root.dataset.theme=next;try{localStorage.setItem('theme',next)}catch(e){}}
+    paint();
+  });
+  paint();
+
+  var cases=Array.prototype.slice.call(document.querySelectorAll('.case'));
+  var filters=Array.prototype.slice.call(document.querySelectorAll('.filters button'));
+  filters.forEach(function(b){
+    b.addEventListener('click',function(){
+      filters.forEach(function(x){x.setAttribute('aria-pressed',String(x===b))});
+      var f=b.dataset.filter;
+      cases.forEach(function(c){
+        var match=f==='all'||(c.dataset.tags||'').split(/\s+/).indexOf(f)>-1;
+        c.classList.toggle('is-muted',!match);
+      });
+    });
+  });
+
+  var items=Array.prototype.slice.call(document.querySelectorAll('.reveal'));
+  function check(){
+    var vh=window.innerHeight||document.documentElement.clientHeight;
+    items.forEach(function(el){
+      if(el.classList.contains('in'))return;
+      var r=el.getBoundingClientRect();
+      if(r.top<vh*0.92&&r.bottom>0)el.classList.add('in');
+    });
+  }
+  check();
+  window.addEventListener('scroll',check,{passive:true});
+  window.addEventListener('resize',check);
+  window.addEventListener('load',check);
+})();
+</script>
+<script src="home-intro.js"></script><script src="portfolio-motion.js"></script><script src="home-navigation.js?v=2"></script></body>
+</html>

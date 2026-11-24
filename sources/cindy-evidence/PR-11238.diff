@@ -1,0 +1,1350 @@
+diff --git a/apps/desktop/scripts/fixtures/automation-unread/fixture.tsx b/apps/desktop/scripts/fixtures/automation-unread/fixture.tsx
+@@ -88,13 +88,13 @@ function Specimen() {
+             <>
+               <p className="mb-3 text-sm text-muted-foreground">已打开：{selected.id} · 演示内容</p>
+               <p className="text-sm">
+-                这条任务已标为已读。组折叠时，它会从未读子列表收回；展开后仍能在历史中找到。组头代表的最新任务在展开时也有独立子行，折叠时只保留组头。
++                这次运行已标为已读，入口上的未读数量会减少。收起时始终只有一个入口，展开后仍能找到完整历史。
+               </p>
+             </>
+           ) : (
+             <div className="space-y-3 text-sm">
+-              <p>「每日巡检」这一行代表最新一次运行，下面六条是其他未读任务，不会重复。</p>
+-              <p>点击标题旁的箭头展开，会列出全部运行，包括组头代表的最新任务和已读历史；再收起，只露出其他未读任务。</p>
++              <p>「每日巡检」只占一个入口，右侧汇总未读数量和需要关注的状态。</p>
++              <p>点击标题旁的箭头展开，查看各次运行和已读历史；再收起，历史会全部收进入口。</p>
+               <p>点开任意一条后，它的未读状态会消失。用「重置演示」可以重新体验。</p>
+             </div>
+           )}
+
+diff --git a/apps/desktop/scripts/fixtures/automation-unread/ui-page.mjs b/apps/desktop/scripts/fixtures/automation-unread/ui-page.mjs
+@@ -15,13 +15,13 @@ export default {
+       about: 'Interactive task sidebar preview with reading and reset controls',
+       viewport: { width: 960, height: 640 },
+     },
+-    default: { about: 'Expanded history includes the header task; collapsed unread rows exclude it' },
++    default: { about: 'One collapsed entry aggregates seven unread runs; expansion preserves all history' },
+   },
+   async check(page, ui) {
+-    for (let i = 1; i <= 6; i++)
+-      assert.equal(await page.locator(`[data-session-id="run-${i}"]`).count(), 1);
+-    assert.equal(await page.locator('[data-session-id="run-0"]').count(), 0);
+-    assert.equal(await page.getByText('已读结果', { exact: true }).count(), 0);
++    assert.equal(await page.locator('[data-sidebar-session-row="true"]').count(), 0);
++    const unreadLabel = await ui.t('ccAgent.sidebar.automationGroup.unreadRunCount', { count: 7 });
++    assert.equal(await page.getByLabel(unreadLabel, { exact: true }).count(), 1);
++    await ui.capture('collapsed-single-entry');
+     await page
+       .getByRole('button', {
+         name: await ui.t('ccAgent.sidebar.automationGroup.expand', { title: '每日巡检' }),
+@@ -40,7 +40,10 @@ export default {
+       .click();
+     await page.locator('[data-session-id="run-7"]').waitFor({ state: 'detached' });
+     assert.equal(await page.locator('[data-session-id="run-0"]').count(), 0);
+-    await page.locator('[data-session-id="run-6"]').click();
+-    await page.locator('[data-session-id="run-6"]').waitFor({ state: 'detached' });
++    assert.equal(await page.locator('[data-sidebar-session-row="true"]').count(), 0);
++    await page.getByRole('button', { name: '每日巡检', exact: true }).click();
++    const remainingLabel = await ui.t('ccAgent.sidebar.automationGroup.unreadRunCount', { count: 6 });
++    await page.getByLabel(remainingLabel, { exact: true }).waitFor();
++    assert.equal(await page.locator('[data-sidebar-session-row="true"]').count(), 0);
+   },
+ };
+
+diff --git a/apps/desktop/src/renderer/__tests__/automationGeneratedSessions.test.ts b/apps/desktop/src/renderer/__tests__/automationGeneratedSessions.test.ts
+@@ -497,7 +497,6 @@ describe('automation-generated sessions', () => {
+       getVisibleAutomationGroupSessions(group, {
+         notifications: new Set(['jira-1']),
+         showAll: false,
+-        headerSessionId: 'jira-1',
+       }).map((session) => session.id),
+     ).toEqual(['jira-2', 'jira-1']);
+     // 组头仍可打开它代表的任务。
+@@ -761,104 +760,37 @@ describe('automation-generated sessions', () => {
+     expect(view.totalCount).toBe(7);
+   });
+ 
+-  describe('collapsed automation group keeps unhandled alerts reachable', () => {
+-    const alertGroup = (count = 7) => ({
+-      id: 'schedule:sched-alert',
+-      title: 'Alert',
+-      sessions: Array.from({ length: count }, (_, index) =>
+-        makeSession({ id: `run-${index}`, title: `RUN-${index}`, source: 'scheduler' }),
+-      ),
+-      attentionSessionIds: [],
+-    });
++  // Regression: unread daily reports must not turn one collapsed automation into
++  // a page of task rows. Exercise the production view with stale expansion state;
++  // expanded-history behavior remains covered below (unit tier).
++  describe('collapsed automation occupies a single sidebar entry', () => {
++    const group = {
++      id: 'schedule:daily', title: 'Daily report',
++      sessions: Array.from({ length: 8 }, (_, index) =>
++        makeSession({ id: `run-${index}`, source: 'scheduler' })),
++      attentionSessionIds: ['run-0', 'run-6'],
++    };
+ 
+-    it('renders nothing extra while no run holds an alert', () => {
+-      const view = getAutomationGroupChildView(alertGroup(), {
+-        notifications: new Set(['run-0']),
+-        showAll: false,
+-        collapsed: true,
++    it.each([false, true])('hides unread and running children even when showAll=%s', (showAll) => {
++      const view = getAutomationGroupChildView(group, {
++        collapsed: true, showAll,
++        notifications: new Set(['run-0', 'run-6']),
++        runningSessionIds: new Set(['run-7']),
++        activeSessionId: 'run-6',
++        frozenVisibleSessionIds: ['run-1'],
++        nowMs: Date.now(),
+       });
+       expect(view.visibleSessions).toEqual([]);
+       expect(view.isOverflowing).toBe(false);
+-      expect(view.totalCount).toBe(0);
+-    });
+-
+-    it('lifts only the alerting runs out of a collapsed group', () => {
+-      // run-3 是「组内第 3 新、turn 从未收尾」那类运行:组头代表的是 run-0,
+-      // 收起态若返回空列表,项目折叠头的红点就没有任何一行能对应上。
+-      const view = getAutomationGroupChildView(alertGroup(), {
+-        notifications: new Set(['run-0', 'run-3']),
+-        showAll: false,
+-        collapsed: true,
+-        collapsedAttentionSessionIds: new Set(['run-3']),
+-      });
+-      expect(view.visibleSessions.map((session) => session.id)).toEqual(['run-3']);
+-      expect(view.isOverflowing).toBe(false);
+-      expect(view.totalCount).toBe(1);
++      expect(view.totalCount).toBe(8);
+     });
+ 
+-    it('keeps every lifted attention run visible beyond five', () => {
+-      const alerts = ['run-0', 'run-1', 'run-2', 'run-3', 'run-4', 'run-5'];
+-      const view = getAutomationGroupChildView(alertGroup(8), {
+-        notifications: new Set(alerts),
+-        showAll: false,
+-        collapsed: true,
+-        collapsedAttentionSessionIds: new Set(alerts),
+-      });
+-      expect(view.visibleSessions).toHaveLength(6);
+-      expect(view.isOverflowing).toBe(false);
+-      expect(view.hiddenCount).toBe(0);
+-      expect(view.totalCount).toBe(6);
+-
+-      const expanded = getAutomationGroupChildView(alertGroup(8), {
+-        notifications: new Set(alerts),
+-        showAll: true,
+-        collapsed: true,
+-        collapsedAttentionSessionIds: new Set(alerts),
+-      });
+-      expect(expanded.visibleSessions.map((session) => session.id)).toEqual(alerts);
+-      expect(expanded.isOverflowing).toBe(false);
+-    });
+-
+-    it('ignores a frozen expanded layout so collapsing cannot drag non-alert runs back', () => {
+-      const view = getAutomationGroupChildView(alertGroup(), {
+-        notifications: new Set(),
+-        showAll: false,
+-        collapsed: true,
+-        collapsedAttentionSessionIds: new Set(['run-4']),
+-        frozenVisibleSessionIds: ['run-0', 'run-1', 'run-2'],
+-      });
+-      expect(view.visibleSessions.map((session) => session.id)).toEqual(['run-4']);
+-    });
+-
+-    it('goes back to the regular collapse cap once the group is expanded', () => {
+-      const view = getAutomationGroupChildView(alertGroup(), {
+-        notifications: new Set(),
+-        showAll: false,
+-        collapsed: false,
+-        collapsedAttentionSessionIds: new Set(['run-6']),
+-      });
+-      expect(view.visibleSessions.map((session) => session.id)).toEqual([
+-        'run-0',
+-        'run-1',
+-        'run-2',
+-        'run-3',
+-        'run-4',
+-      ]);
+-      expect(view.totalCount).toBe(7);
+-    });
+-
+-    it('does not let a leftover collapsed showAll dump the whole history on expand', () => {
+-      // 收起态点过「显示全部」后,showAll 仍为 true;若展开分支把 collapsed 短路排在
+-      // showAll 之后,会一次渲染全部历史运行。组件切折叠时会清 showAll,本断言钉住
+-      // childView 自己也不依赖那次复位。
+-      const view = getAutomationGroupChildView(alertGroup(), {
+-        notifications: new Set(),
+-        showAll: true,
+-        collapsed: false,
+-        collapsedAttentionSessionIds: new Set(['run-0', 'run-1', 'run-2', 'run-3', 'run-4', 'run-5']),
++    it('keeps the entire history available after explicit expansion', () => {
++      const view = getAutomationGroupChildView(group, {
++        collapsed: false, showAll: true, notifications: new Set(['run-6']),
+       });
+-      expect(view.visibleSessions).toHaveLength(7);
+-      expect(view.totalCount).toBe(7);
++      expect(view.visibleSessions).toEqual(group.sessions);
++      expect(view.totalCount).toBe(8);
+     });
+   });
+ 
+@@ -1011,7 +943,6 @@ describe('automation-generated sessions', () => {
+     expect(source).toContain('{hasVisibleChildren && (');
+     // 侧栏侧保留「立即运行」直点,低频的编辑 / 暂停恢复 / 删除收回 More 菜单。
+     expect(source).toContain("onScheduleAction(group, 'run')");
+-    expect(source).toContain('const canMarkRead = collapsedAttention.tone != null');
+     expect(source).toContain('{canMarkRead && (');
+     expect(source).toContain("onScheduleAction(group, 'mark-read')");
+     expect(source).toContain("onScheduleAction(group, 'edit')");
+@@ -1033,7 +964,6 @@ describe('automation-generated sessions', () => {
+     expect(source).toContain('ccAgent.sidebar.automationGroup.menu.delete');
+     expect(source).toContain('scheduleFocusPath(group.scheduleId)');
+     // 组头点击:展开打开最新一条;收起且整组是红时打开贡献红点的那条。
+-    expect(source).toContain('resolveCollapsedGroupHeaderSessionId({');
+     expect(source).toContain('onSessionClick(targetId)');
+     expect(source).toContain('getAutomationGroupLatestSession(group)');
+     expect(source).toContain('visibleSessionIds: visibleSessions.map((session) => session.id)');
+
+diff --git a/apps/desktop/src/renderer/__tests__/projectCollapsedAttention.test.ts b/apps/desktop/src/renderer/__tests__/projectCollapsedAttention.test.ts
+@@ -5,8 +5,10 @@ import { describe, expect, it } from 'vitest';
+ 
+ import type { AttentionKind } from '@/lib/sessionAttentionStore';
+ import type { RemoteSessionActivityPhase } from '@/features/device-link/remoteSessionActivityStore';
++import type { SessionRightStatus } from '@cindy/maker-shared/session-activity';
+ import {
+   resolveCollapsedAttention,
++  resolveCollapsedAutomationGroupState,
+   resolveCollapsedGroupHeaderSessionId,
+   resolveCollapsedGroupRightStatus,
+   resolveCollapsedProjectAttentionTone,
+@@ -40,6 +42,8 @@ interface ResolveOptions {
+   attentionKinds?: [string, AttentionKind][];
+   urgent?: string[];
+   remotePhases?: [string, RemoteSessionActivityPhase][];
++  localPhases?: [string, RemoteSessionActivityPhase][];
++  remoteIds?: string[];
+ }
+ 
+ function inputFor({
+@@ -49,15 +53,21 @@ function inputFor({
+   attentionKinds = [],
+   urgent = [],
+   remotePhases = [],
++  localPhases = [],
++  remoteIds = [],
+ }: ResolveOptions = {}) {
+   const phases = new Map(remotePhases);
++  const localPhaseMap = new Map(localPhases);
+   return {
+-    sessions: sessions(ids),
++    sessions: sessions(ids).map((session) => remoteIds.includes(session.id)
++      ? { ...session, deviceLinkDeviceId: 'remote-device' }
++      : session),
+     runningSessionIds: new Set(running),
+     notifications: new Set(notifications),
+     attentionKinds: new Map(attentionKinds),
+     urgentSessionIds: new Set(urgent),
+     remotePhaseOf: (sessionId: string) => phases.get(sessionId),
++    localPhaseOf: (sessionId: string) => localPhaseMap.get(sessionId),
+   };
+ }
+ 
+@@ -206,6 +216,121 @@ describe('collapsed automation group right status', () => {
+   });
+ });
+ 
++// Test value: the collapsed automation entry must expose an older waiting/running
++// run after all child rows are hidden. Existing project tests intentionally omit
++// those states. Minimal regression: latest idle run + older awaiting run; unit tier.
++describe('single collapsed automation entry', () => {
++  const groupState = (options: ResolveOptions = {}) =>
++    resolveCollapsedAutomationGroupState({ ...inputFor(options), latestSessionId: 'latest' });
++
++  it.each([
++    {
++      options: {
++        ids: ['latest', 'older-awaiting'],
++        notifications: ['older-awaiting'],
++        attentionKinds: [['older-awaiting', 'awaiting']] as [string, AttentionKind][],
++      },
++      expected: { kind: 'awaiting', sessionId: 'older-awaiting', unreadCount: 0 },
++    },
++    {
++      options: { ids: ['latest', 'older-running'], running: ['older-running'] },
++      expected: { kind: 'running', sessionId: 'older-running', unreadCount: 0 },
++    },
++    {
++      options: { ids: ['latest', 'older-done'], notifications: ['older-done'] },
++      expected: { kind: 'done', sessionId: 'older-done', unreadCount: 1 },
++    },
++    {
++      options: { ids: ['latest', 'older-idle'] },
++      expected: { kind: 'time', sessionId: 'latest', unreadCount: 0 },
++    },
++  ])('opens the run contributing $expected.kind', ({ options, expected }) => {
++    expect(groupState(options)).toEqual(expected);
++  });
++
++  it('prioritizes error, awaiting, running, then unread completion with matching destinations', () => {
++    const options: ResolveOptions = {
++      ids: ['latest', 'done', 'running', 'awaiting', 'error'],
++      notifications: ['done', 'awaiting', 'error'],
++      attentionKinds: [['awaiting', 'awaiting'], ['error', 'error']],
++      running: ['running'],
++    };
++    expect(groupState(options)).toEqual({ kind: 'error', sessionId: 'error', unreadCount: 2 });
++    expect(groupState({ ...options, ids: options.ids!.filter((id) => id !== 'error') })).toEqual({
++      kind: 'awaiting', sessionId: 'awaiting', unreadCount: 1,
++    });
++    expect(groupState({ ...options, ids: ['latest', 'done', 'running'] })).toEqual({
++      kind: 'running', sessionId: 'running', unreadCount: 1,
++    });
++  });
++
++  it('uses remote phases over stale local attention and opens remote waiting runs', () => {
++    const options: ResolveOptions = {
++      ids: ['latest', 'remote-waiting', 'remote-running', 'remote-done'],
++      notifications: ['remote-waiting', 'remote-running'],
++      attentionKinds: [['remote-waiting', 'error'], ['remote-running', 'error']],
++      remotePhases: [
++        ['remote-waiting', 'needs-interaction'],
++        ['remote-running', 'running'],
++        ['remote-done', 'completed'],
++      ],
++    };
++    expect(groupState(options)).toEqual({ kind: 'awaiting', sessionId: 'remote-waiting', unreadCount: 1 });
++    expect(groupState({ ...options, ids: ['latest', 'remote-running', 'remote-done'] })).toEqual({
++      kind: 'running', sessionId: 'remote-running', unreadCount: 1,
++    });
++    expect(groupState({ ...options, remotePhases: [['remote-done', 'error']], notifications: [] })).toEqual({
++      kind: 'error', sessionId: 'remote-done', unreadCount: 1,
++    });
++  });
++
++  it.each(['error', 'awaiting', 'running'] as SessionRightStatus[])(
++    'preserves live latest %s after its unread marker is cleared', (latestKind) => {
++      expect(resolveCollapsedAutomationGroupState({
++        ...inputFor({ ids: ['latest', 'older-done'], notifications: ['older-done'] }),
++        latestSessionId: 'latest', latestKind,
++      })).toEqual({ kind: latestKind, sessionId: 'latest', unreadCount: 1 });
++    },
++  );
++
++  it('keeps an older error above the latest live waiting state', () => {
++    expect(resolveCollapsedAutomationGroupState({
++      ...inputFor({ ids: ['latest', 'older-error'], urgent: ['older-error'] }),
++      latestSessionId: 'latest', latestKind: 'awaiting',
++    })).toEqual({ kind: 'error', sessionId: 'older-error', unreadCount: 1 });
++  });
++
++  it.each([false, true])('counts urgent-only failures once, with notification=%s', (hasNotification) => {
++    expect(groupState({
++      ids: ['latest', 'urgent-failure'], urgent: ['urgent-failure'],
++      notifications: hasNotification ? ['urgent-failure'] : [],
++    })).toEqual({ kind: 'error', sessionId: 'urgent-failure', unreadCount: 1 });
++  });
++
++  it.each([
++    ['needs-interaction', 'awaiting'], ['running', 'running'], ['error', 'error'],
++  ] as [RemoteSessionActivityPhase, SessionRightStatus][])(
++    'exposes older local %s even after its notification is cleared', (phase, kind) => {
++      expect(groupState({
++        ids: ['latest', 'older-live'], localPhases: [['older-live', phase]],
++      })).toEqual({ kind, sessionId: 'older-live', unreadCount: 0 });
++    },
++  );
++
++  it('does not treat a remote row as local when its remote mirror is absent', () => {
++    expect(groupState({
++      ids: ['latest', 'remote'], remoteIds: ['remote'], localPhases: [['remote', 'error']],
++    })).toEqual({ kind: 'time', sessionId: 'latest', unreadCount: 0 });
++  });
++
++  it('uses a local live running phase over a stale local error notification', () => {
++    expect(groupState({
++      ids: ['latest', 'older-live'], localPhases: [['older-live', 'running']],
++      notifications: ['older-live'], attentionKinds: [['older-live', 'error']],
++    })).toEqual({ kind: 'running', sessionId: 'older-live', unreadCount: 0 });
++  });
++});
++
+ describe('collapsed project attention wiring', () => {
+   it('renders the aggregate status on the trailing slot while the project is collapsed', () => {
+     const slotChrome = 'group/slot relative ml-auto flex h-6 shrink-0 items-center justify-end';
+@@ -231,20 +356,6 @@ describe('collapsed project attention wiring', () => {
+     expect(indicator).toBeGreaterThan(trailingSlot);
+   });
+ 
+-  it('feeds the automation group header and its collapsed rows from the same summary', () => {
+-    // 组头红点与收起态提上来的告警行必须同源 —— 判据分家就会重演「项目行有红点、
+-    // 展开后哪一行都没有」。
+-    expect(automationGroupSource).toContain('resolveCollapsedAttention({');
+-    expect(automationGroupSource).toContain('resolveCollapsedGroupRightStatus({');
+-    expect(automationGroupSource).toContain('resolveCollapsedGroupHeaderSessionId({');
+-    expect(automationGroupSource).toMatch(/tone:\s*collapsedAttention\.tone/);
+-    expect(automationGroupSource).toMatch(/new Set\(collapsedAttention\.errorSessionIds\)/);
+-    expect(automationGroupSource).toContain('collapsedAttentionSessionIds,');
+-    // 收起态不再是"空列表",子行的取舍统一由 getAutomationGroupChildView 决定。
+-    expect(automationGroupSource).toContain('const visibleSessions = childView.visibleSessions;');
+-    expect(automationGroupSource).not.toMatch(/collapsed\s*\?\s*\[\]\s*:/);
+-  });
+-
+   it('aggregates the group header without falling back to whole-table subscriptions', () => {
+     // 每个项目下都挂着若干组头,整表 / 整集订阅会让任何一个任务的状态变化重画全部组头。
+     expect(automationGroupSource).not.toMatch(/useSessionAttentionKinds\s*\(/);
+
+diff --git a/apps/desktop/src/renderer/features/cc-agent/lib/automationSidebarGrouping.ts b/apps/desktop/src/renderer/features/cc-agent/lib/automationSidebarGrouping.ts
+@@ -227,34 +227,26 @@ export function groupAutomationSidebarEntries(
+ export interface AutomationGroupChildView {
+   /** 组头底下实际要渲染的子运行(收起 / 展开 / 冻结三态统一出口)。 */
+   visibleSessions: Session[];
+-  /** 收起态是否还有被折叠的子运行 —— 决定是否显示「显示全部 N 个」。 */
++  /** 展开的历史预览是否还有被隐藏的运行，决定是否显示「显示全部 N 个」。 */
+   isOverflowing: boolean;
+   /** 组内子运行总数(「显示全部 N 个」里的 N)。 */
+   totalCount: number;
+-  /** 收起态被折叠隐藏的子运行数量。 */
++  /** 被当前显示方式隐藏的子运行数量。 */
+   hiddenCount: number;
+ }
+ 
+ export interface AutomationGroupChildViewOptions {
+   notifications: ReadonlySet<string>;
+   runningSessionIds?: ReadonlySet<string>;
+   showAll: boolean;
+-  /** 组头实际打开的任务，仅在收起态从未读子行中排除；展开态仍列出。 */
+-  headerSessionId?: string;
+   activeSessionId?: string;
+   frozenVisibleSessionIds?: readonly string[] | null;
+   /** 传入当前时间 ms 即启用「最近 24h 内有活动不折叠」豁免(和普通对话一致);不传走纯硬上限。 */
+   nowMs?: number;
+   /** 展开组内的历史列表默认展示条数，默认 5（和普通对话一致）。 */
+   minVisibleCount?: number;
+-  /** 轴 1(文件夹开/关)的收起态。收起时只渲染 collapsedAttentionSessionIds 命中的运行。 */
++  /** 收起时只保留组头，所有运行均在显式展开后展示。 */
+   collapsed?: boolean;
+-  /**
+-   * 收起态仍要保留可见的非静默未读、错误告警与待回复运行 id。错误来源是
+-   * `sidebar/projectCollapsedAttention.ts` 的 `resolveCollapsedAttention().errorSessionIds`
+-   * —— 与组头红点、项目折叠头红点同一份判据;待回复由组件按本地/远程活动补入。
+-   */
+-  collapsedAttentionSessionIds?: ReadonlySet<string>;
+   /**
+    * 展开态折叠的追加豁免集合(只影响折叠),语义同 SessionEntryList 的同名 prop:
+    * 父层把 device-link 远程活动镜像并进来,保证项目行 / 对话组 / 设备段头聚合灯
+@@ -268,12 +260,7 @@ export interface AutomationGroupChildViewOptions {
+  *
+  * 展开态列出全部运行，包含组头代表的那条，并复用普通任务列表的前 N 条、
+  * 最近 24h、未读／运行中和当前任务豁免；冻结布局和「显示全部」也保留它。
+- * 只有收起态排除组头实际代表的任务，避免未读子行与组头重复。
+- *
+- * 收起态仍展示全部非静默未读及待处理运行，不受前 N 条上限影响。
+- * 组件把未读、远程 completed、错误和待回复统一传入 collapsedAttentionSessionIds；
+- * 静默成功不产生未读，已读且无待处理状态的历史仍隐藏。
+- * 收起态不套 24h / active 豁免，避免普通历史或当前打开的已读运行撑开列表。
++ * 收起态不展示子运行；未读、异常和待回复由组头汇总，历史通过展开查看。
+  */
+ export function getAutomationGroupChildView(
+   group: AutomationSessionGroup,
+@@ -287,24 +274,20 @@ export function getAutomationGroupChildView(
+     hiddenCount: 0,
+   });
+ 
+-  // 收起态先于冻结布局和 showAll，只显示未读及待处理运行。
++  // 收起始终只占一个入口，不能被未读、当前任务或残留展开状态撑开。
+   if (options.collapsed) {
+-    const attentionIds = options.collapsedAttentionSessionIds;
+-    const visibleSessions = attentionIds?.size
+-      ? allRuns.filter((session) => session.id !== options.headerSessionId && attentionIds.has(session.id))
+-      : [];
+     return {
+-      visibleSessions,
++      visibleSessions: [],
+       isOverflowing: false,
+-      totalCount: visibleSessions.length,
+-      hiddenCount: 0,
++      totalCount: allRuns.length,
++      hiddenCount: allRuns.length,
+     };
+   }
+ 
+   // 展开:全量子运行。
+   if (options.showAll) return withoutOverflow(allRuns);
+ 
+-  // 冻结:用户在收起态点进某条子运行后,锁定点击瞬间的可见布局,避免列表跳动。
++  // 冻结:用户在历史预览点进某条运行后,锁定点击瞬间的可见布局,避免列表跳动。
+   if (options.frozenVisibleSessionIds) {
+     const byId = new Map(allRuns.map((session) => [session.id, session]));
+     const frozenSessions = options.frozenVisibleSessionIds
+@@ -314,13 +297,21 @@ export function getAutomationGroupChildView(
+     const visibleIds = new Set(frozenSessions.map((session) => session.id));
+     const visibleSessions = [
+       ...frozenSessions,
+-      ...allRuns.filter((session) => !visibleIds.has(session.id) &&
+-        (options.notifications.has(session.id) ||
+-          options.runningSessionIds?.has(session.id) ||
+-          options.foldExemptSessionIds?.has(session.id))),
++      ...allRuns.filter(
++        (session) =>
++          !visibleIds.has(session.id) &&
++          (options.notifications.has(session.id) ||
++            options.runningSessionIds?.has(session.id) ||
++            options.foldExemptSessionIds?.has(session.id)),
++      ),
+     ];
+     const hiddenCount = allRuns.length - visibleSessions.length;
+-    return { visibleSessions, isOverflowing: hiddenCount > 0, totalCount: allRuns.length, hiddenCount };
++    return {
++      visibleSessions,
++      isOverflowing: hiddenCount > 0,
++      totalCount: allRuns.length,
++      hiddenCount,
++    };
+   }
+ 
+   // 默认展开态：全部运行套用普通任务同款折叠，包含组头代表的任务。
+
+diff --git a/apps/desktop/src/renderer/features/cc-agent/sidebar/AutomationSessionGroupItem.tsx b/apps/desktop/src/renderer/features/cc-agent/sidebar/AutomationSessionGroupItem.tsx
+@@ -40,17 +40,16 @@ import {
+   useRemoteSessionActivity,
+   useRemoteSessionsPhaseMap,
+ } from '@/features/device-link/remoteSessionActivityStore';
+-import { useAgentIslandActivity } from '@/state/agentIslandActivity';
++import {
++  useAgentIslandActivity,
++  useAgentIslandSessionsPhaseMap,
++} from '@/state/agentIslandActivity';
+ import {
+   projectSidebarSessionActivity,
+   resolveSidebarRightStatus,
+   type SidebarRightStatusKind,
+ } from './sidebarRightStatus';
+-import {
+-  resolveCollapsedAttention,
+-  resolveCollapsedGroupHeaderSessionId,
+-  resolveCollapsedGroupRightStatus,
+-} from './projectCollapsedAttention';
++import { resolveCollapsedAutomationGroupState } from './projectCollapsedAttention';
+ import { AutomationTimerIcon } from './AutomationTimerIcon';
+ import { SessionCard } from './SessionCard';
+ import { sessionRowKey } from './sessionRowKey';
+@@ -157,63 +156,71 @@ export const AutomationSessionGroupItem = withSidebarNavigation<AutomationSessio
+     const [menuOpen, setMenuOpen] = useState(false);
+     const [rowTooltipOpen, setRowTooltipOpen] = useState(false);
+     const [countdownNowMs, setCountdownNowMs] = useState(() => Date.now());
+-    // 组头 = 组内「最新一条」运行的代理:状态、running/loading、点击打开目标都跟这条一致。
+-    // 用 group.sessions 派生(仅活动时间排序,不掺 running/notifications),引用随组内成员
+-    // 变化才变,天然稳定,无需再靠 frozen 快照固定"代表会话"。
++    // 最新运行作为展开态的代表；收起态另按整组汇总状态和打开目标。
+     const latestSession = useMemo(() => getAutomationGroupLatestSession(group), [group]);
+     const latestSessionId = latestSession?.id;
+-    // ── 收起态的整组汇总 ────────────────────────────────────────────────────────
+-    // 组头收起时代表的是**整组**,不能只反映最新一条:组内任意一条运行留下未处理告警
+-    // (典型是被 App 重启打断、turn 从未收尾的运行)时,项目折叠头会按全部子任务汇总出
+-    // 红点,而此前组头只看最新一条、收起态子行又整片不渲染 —— 于是「项目行有红点、
+-    // 展开后哪一行都没有」。判据复用项目折叠头那一份(resolveCollapsedAttention),
+-    // 红点与被提上来的告警行同源,两者不可能再打架。
+-    // 三个 hook 都是"一组 id"的 primitive 快照订阅(组外会话变化、组内不改变本组结果的
+-    // 变化都不唤醒本组件),不要退回整表 / 整集订阅 —— 每个项目下都有若干组头在挂载。
++    // 收起只显示一个入口；按本组订阅汇总所有运行的状态和点击目标。
+     const groupSessionIds = useMemo(
+       () => group.sessions.map((session) => session.id),
+       [group.sessions],
+     );
+     const groupAttentionKinds = useSessionsAttentionKindMap(groupSessionIds);
+     const groupUrgentSessionIds = useSessionsAttentionUrgencyIdSet(groupSessionIds);
+     const groupRemotePhases = useRemoteSessionsPhaseMap(group.sessions);
+-    const collapsedAttention = useMemo(
++    const groupLocalPhases = useAgentIslandSessionsPhaseMap(groupSessionIds);
++    const latestUrgentFromSchedule = useSessionAttentionUrgency(latestSessionId ?? '');
++    const latestChatKind = useSessionAttentionKind(latestSessionId ?? '');
++    const latestLocalActivity = useAgentIslandActivity(latestSessionId ?? '');
++    const latestRemoteActivity = useRemoteSessionActivity(
++      latestSessionId ?? '',
++      latestSession?.deviceLinkDeviceId,
++    );
++    const latestLiveActivity = latestSession?.deviceLinkDeviceId
++      ? latestRemoteActivity
++      : latestLocalActivity;
++    const isRunning =
++      latestSessionId != null && latestSession?.deviceLinkDeviceId
++        ? latestRemoteActivity?.phase === 'running'
++        : latestSessionId != null && runningSessionIds.has(latestSessionId);
++    const latestHasNotification = latestSessionId != null && notifications.has(latestSessionId);
++    const groupActivity = projectSidebarSessionActivity({
++      interruption: latestSession,
++      sessionId: latestSessionId ?? '',
++      title: latestSession?.title,
++      recordStatus: latestSession?.status,
++      liveActivity: latestLiveActivity,
++      attentionKind: latestChatKind,
++      isUrgentFromContext: latestUrgentFromSchedule,
++      isRunning,
++      hasAttentionNotification: latestHasNotification,
++    });
++    const latestKind = resolveSidebarRightStatus(groupActivity);
++    const collapsedState = useMemo(
+       () =>
+-        resolveCollapsedAttention({
++        resolveCollapsedAutomationGroupState({
++          latestSessionId,
++          latestKind,
+           sessions: group.sessions,
+           runningSessionIds,
+           notifications,
+           attentionKinds: groupAttentionKinds,
+           urgentSessionIds: groupUrgentSessionIds,
+           remotePhaseOf: (sessionId) => groupRemotePhases.get(sessionId),
++          localPhaseOf: (sessionId) => groupLocalPhases.get(sessionId),
+         }),
+       [
+         group.sessions,
++        latestSessionId,
++        latestKind,
+         groupAttentionKinds,
+         groupRemotePhases,
++        groupLocalPhases,
+         groupUrgentSessionIds,
+         notifications,
+         runningSessionIds,
+       ],
+     );
+-    // 非静默未读、错误和待回复运行在收起时仍可见。静默成功已由上游排除未读。
+-    // 远程活动仍是权威来源，不能让本地残留未读盖过远程 running。
+-    const collapsedAttentionSessionIds = useMemo(() => {
+-      const ids = new Set(collapsedAttention.errorSessionIds);
+-      for (const session of group.sessions) {
+-        const remotePhase = groupRemotePhases.get(session.id);
+-        if (
+-          remotePhase === 'needs-interaction' ||
+-          remotePhase === 'completed' ||
+-          (!remotePhase && notifications.has(session.id))
+-        ) {
+-          ids.add(session.id);
+-        }
+-      }
+-      return ids;
+-    }, [collapsedAttention, group.sessions, groupRemotePhases, notifications]);
+-    // 与组头红/绿未读点同源:没有未读就不提供「标为已读」,避免空操作占菜单。
+-    const canMarkRead = collapsedAttention.tone != null;
++    const canMarkRead = collapsedState.unreadCount > 0;
+     // 远程分组只提供在对方电脑上执行的操作（运行、暂停 / 恢复、标为已读）；编辑页与删除
+     // 确认只管本机任务，查看入口也不能拿远程 id 去聚焦本机自动化页。
+     const isRemoteGroup = !!group.deviceLinkDeviceId;
+@@ -224,12 +231,7 @@ export const AutomationSessionGroupItem = withSidebarNavigation<AutomationSessio
+     const hasMoreMenuItems = teammateRoutine
+       ? canMarkRead
+       : !isRemoteGroup || canMarkRead || group.scheduleStatus !== 'expired';
+-    // 点击目标和收起态子行去重共用同一 ID；折叠红点可能代表旧的失败运行而非最新运行。
+-    const headerSessionId = resolveCollapsedGroupHeaderSessionId({
+-      collapsed,
+-      latestSessionId,
+-      attention: collapsedAttention,
+-    });
++    const headerSessionId = collapsed ? collapsedState.sessionId : latestSessionId;
+     // childView 的 24h 豁免依赖实时 now,必须每次渲染直接算,不能进 useMemo —— 否则依赖项
+     // 不变时时间窗口会被冻结,跨过 24h 阈值的运行不会及时移出豁免。与普通对话列表
+     // SessionEntryList 一致(它也是 render 内直接算 getSessionListCollapseView、不 memo);
+@@ -243,35 +245,12 @@ export const AutomationSessionGroupItem = withSidebarNavigation<AutomationSessio
+       // 实时 now:启用「最近 24h 内有活动不折叠」豁免,和普通对话列表一致。
+       nowMs: Date.now(),
+       collapsed,
+-      collapsedAttentionSessionIds,
+-      headerSessionId,
+       foldExemptSessionIds,
+     });
+-    // 轴 1 收起时只留组头 + 未读及待处理行;展开时交给轴 2 的「前 5 / 显示全部」。
++    // 收起只留组头；展开后保留原有的历史列表和「显示全部」。
+     // 两种形态都由 getAutomationGroupChildView 一处决定(见该函数说明)。
+     const visibleSessions = childView.visibleSessions;
+-    // 组头右侧状态图标的**基线**来源(全端统一 5 档色表:error 红 > awaiting TapTap 蓝 >
+-    // running spinner > 完成未读绿 > time),两路信号都只看「最新一条」运行:
+-    //   1. SessionAttentionUrgencyContext:该 run 是失败 schedule run(attentionKind 缺失
+-    //      但语义等同 error)→ 红
+-    //   2. sessionAttentionStore kind:该 run 有 chat 侧 urgent attention
+-    //      (错误终止 → 红;pending ask-user / 权限 → 蓝)
+-    // 组头是「最新一条运行的代理」:点击打开它,loading / vendor 呼吸与其一致。展开态右侧
+-    // 状态就到此为止;**收起态**再叠一层整组汇总(上方 collapsedAttention +
+-    // resolveCollapsedGroupRightStatus)—— 此时组头代表整组,组内任何一条的未处理告警都必须
+-    // 露出来,否则会重演「项目折叠头有红点、展开却哪一行都没有」。
+-    // 这两个 hook 仍按 latestSessionId 精准订阅(boolean / kind primitive 快照),整组那三个
+-    // 也都是"一组 id"的 primitive 快照 —— 别退回整组对象 / 整张表订阅(性能不变量)。
+-    const latestUrgentFromSchedule = useSessionAttentionUrgency(latestSessionId ?? '');
+-    const latestChatKind = useSessionAttentionKind(latestSessionId ?? '');
+-    const latestLocalActivity = useAgentIslandActivity(latestSessionId ?? '');
+-    const latestRemoteActivity = useRemoteSessionActivity(
+-      latestSessionId ?? '',
+-      latestSession?.deviceLinkDeviceId,
+-    );
+-    const latestLiveActivity = latestSession?.deviceLinkDeviceId
+-      ? latestRemoteActivity
+-      : latestLocalActivity;
++    // 展开时仍显示最新运行的状态；收起时显示整组最需要关注的状态。
+     const scheduleId = group.scheduleId;
+     // Deleting an automation leaves its past runs grouped under a fallback key, so the group
+     // has no scheduleId any more. Those sessions are still real and still archivable: the
+@@ -282,7 +261,8 @@ export const AutomationSessionGroupItem = withSidebarNavigation<AutomationSessio
+     const hasArchivableSessions =
+       canArchiveGroupSessions && group.sessions.some((session) => session.status === 'active');
+     // 组头右侧悬停操作槽：schedule 分组恒有（运行 + 更多），例行任务分组仅在有菜单项时有。
+-    const hasHoverActions = !!scheduleId || (!!teammateRoutine && hasMoreMenuItems) || hasArchivableSessions;
++    const hasHoverActions =
++      !!scheduleId || (!!teammateRoutine && hasMoreMenuItems) || hasArchivableSessions;
+     // 「已停止」= paused(用户主动暂停)+ expired(计划到期不再触发);两者对用户体验
+     // 而言都是「不会再自动跑」,视觉上都在 Timer chip 上叠 Pause 徽标,并在 tooltip
+     // 里显示「已停止」文案,避免用户误判为普通空闲态。
+@@ -291,10 +271,6 @@ export const AutomationSessionGroupItem = withSidebarNavigation<AutomationSessio
+     const hasVisibleChildren = visibleSessions.length > 0;
+     // running / loading 也只看最新那条:组头 vendor mark 呼吸 + Timer chip 呼吸 + 右侧
+     // spinner 都据此,与最新 session 子行一致(需求:「loading 状态和最新的 session 保持一致」)。
+-    const isRunning =
+-      latestSessionId != null && latestSession?.deviceLinkDeviceId
+-        ? latestRemoteActivity?.phase === 'running'
+-        : latestSessionId != null && runningSessionIds.has(latestSessionId);
+     const primaryActivityIso = latestSession?.updatedAt;
+     const hasActiveHidden =
+       activeSessionId != null &&
+@@ -306,31 +282,10 @@ export const AutomationSessionGroupItem = withSidebarNavigation<AutomationSessio
+       Number.isFinite(group.nextFireAt) &&
+       group.nextFireAt > countdownNowMs;
+     const ToggleIcon = collapsed ? ChevronRight : ChevronDown;
+-    // 组头右侧状态槽复用 SessionItem 的 5 档色表(error 红 / awaiting 蓝 / running spinner /
+-    // done 绿 / time 文字):四个 input 全部取「最新一条」运行,送进同一 resolveSidebarRightStatus,
+-    // 于是组头右侧状态与最新 session 子行像素级一致(色号 / 图标尺寸 / 判定完全同源)。
+-    // 收起态在这个基线之上叠整组汇总,见下方 groupRightStatusKind —— 色表与图标不变,
+-    // 只是档位改由整组决定。
+-    const latestHasNotification = latestSessionId != null && notifications.has(latestSessionId);
+-    const groupActivity = projectSidebarSessionActivity({
+-      interruption: latestSession,
+-      sessionId: latestSessionId ?? '',
+-      title: latestSession?.title,
+-      recordStatus: latestSession?.status,
+-      liveActivity: latestLiveActivity,
+-      attentionKind: latestChatKind,
+-      isUrgentFromContext: latestUrgentFromSchedule,
+-      isRunning,
+-      hasAttentionNotification: latestHasNotification,
+-    });
+-    // 收起态按整组汇总补足组头(展开态仍严格只看最新一条),判据见
+-    // resolveCollapsedGroupRightStatus。isRunning 与 vendor / Timer 呼吸不受影响,仍跟
+-    // 最新一条 —— 保住「loading 与最新 session 一致」那条既有裁决。
+-    const groupRightStatusKind: SidebarRightStatusKind = resolveCollapsedGroupRightStatus({
+-      collapsed,
+-      latestKind: resolveSidebarRightStatus(groupActivity),
+-      tone: collapsedAttention.tone,
+-    });
++    // 复用任务行的五档状态和语义色；收起按整组汇总，展开跟随最新运行。
++    const groupRightStatusKind: SidebarRightStatusKind = collapsed
++      ? collapsedState.kind
++      : resolveSidebarRightStatus(groupActivity);
+     const showRightStatus = groupRightStatusKind !== 'time';
+     const actionButtonToneClassName = hasActiveHidden
+       ? 'text-sidebar-item-active-foreground hover:text-sidebar-item-active-foreground hover:bg-[color-mix(in_srgb,var(--sidebar-item-active-foreground)_14%,transparent)]'
+@@ -353,8 +308,7 @@ export const AutomationSessionGroupItem = withSidebarNavigation<AutomationSessio
+     freezeCurrentLayoutRef.current = freezeCurrentLayout;
+     const showAllRef = useRef(showAll);
+     showAllRef.current = showAll;
+-    // 收起态点告警行不冻结:冻结快照会把"当时可见的行"锁成布局,而收起态可见的只有
+-    // 告警行 —— 之后用户展开这个组会看到被锁住的两三条告警行而不是正常的前 5 条运行。
++    // 只有展开后的子行会冻结布局，收起时不显示子行。
+     const collapsedRef = useRef(collapsed);
+     collapsedRef.current = collapsed;
+     const handleChildSessionClick = useCallback<SessionClickHandler>(
+@@ -472,12 +426,11 @@ export const AutomationSessionGroupItem = withSidebarNavigation<AutomationSessio
+       [countdownText, runCountText, stoppedText],
+     );
+ 
+-    // 点击空白行区域 = 点击标题。展开态打开最新一条;收起且整组是红时打开
+-    // 贡献红点的那条。行内控件各自 stopPropagation,不会误触发。
++    // 点击入口打开汇总状态对应的运行，展开后仍打开最新一次。
+     const openLatestSession = () => {
+       const targetId = headerSessionId;
+       if (!targetId) return;
+-      // 仅在展开 + 前 5 条态下冻结当前布局;收起态未读子行随已读状态收回。
++      // 仅在展开 + 前 5 条态下冻结当前布局。
+       if (!collapsed && !showAll) freezeCurrentLayout(targetId);
+       onSessionClick(targetId);
+     };
+@@ -578,35 +531,35 @@ export const AutomationSessionGroupItem = withSidebarNavigation<AutomationSessio
+                   />
+                 </span>
+               ) : (
+-              <Tip text={scheduleBindingLabel} side="bottom">
+-                <button
+-                  type="button"
+-                  data-automation-group-inline-action="true"
+-                  aria-label={scheduleBindingLabel}
+-                  onClick={(event) => {
+-                    event.stopPropagation();
+-                    navigate(
+-                      group.scheduleId && !isRemoteGroup
+-                        ? scheduleFocusPath(group.scheduleId)
+-                        : '/cc-agent/scheduled',
+-                    );
+-                  }}
+-                  onPointerDown={(event) => event.stopPropagation()}
+-                  className={cn(
+-                    'relative inline-flex size-3 shrink-0 cursor-pointer items-center justify-center',
+-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]',
+-                    sessionVariant === 'list' && 'order-2',
+-                  )}
+-                >
+-                  {/* Timer 始终占同一个 12px 槽；暂停/过期只叠状态角标，不替换主图标。 */}
+-                  <AutomationTimerIcon
+-                    size={10}
+-                    paused={isScheduleStopped}
+-                    activeForeground={hasActiveHidden}
+-                    running={isRunning}
+-                  />
+-                </button>
+-              </Tip>
++                <Tip text={scheduleBindingLabel} side="bottom">
++                  <button
++                    type="button"
++                    data-automation-group-inline-action="true"
++                    aria-label={scheduleBindingLabel}
++                    onClick={(event) => {
++                      event.stopPropagation();
++                      navigate(
++                        group.scheduleId && !isRemoteGroup
++                          ? scheduleFocusPath(group.scheduleId)
++                          : '/cc-agent/scheduled',
++                      );
++                    }}
++                    onPointerDown={(event) => event.stopPropagation()}
++                    className={cn(
++                      'relative inline-flex size-3 shrink-0 cursor-pointer items-center justify-center',
++                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]',
++                      sessionVariant === 'list' && 'order-2',
++                    )}
++                  >
++                    {/* Timer 始终占同一个 12px 槽；暂停/过期只叠状态角标，不替换主图标。 */}
++                    <AutomationTimerIcon
++                      size={10}
++                      paused={isScheduleStopped}
++                      activeForeground={hasActiveHidden}
++                      running={isRunning}
++                    />
++                  </button>
++                </Tip>
+               )}
+               <button
+                 type="button"
+@@ -682,6 +635,15 @@ export const AutomationSessionGroupItem = withSidebarNavigation<AutomationSessio
+                     menuOpen && 'opacity-0',
+                   )}
+                 >
++                  {collapsed && collapsedState.unreadCount > 0 && (
++                    <span
++                      aria-label={t('ccAgent.sidebar.automationGroup.unreadRunCount', {
++                        count: collapsedState.unreadCount,
++                      })}
++                    >
++                      {collapsedState.unreadCount}
++                    </span>
++                  )}
+                   {showRightStatus ? (
+                     groupRightStatusKind === 'error' ? (
+                       <span
+
+diff --git a/apps/desktop/src/renderer/features/cc-agent/sidebar/__tests__/automationGroupCollapsedAlerts.test.tsx b/apps/desktop/src/renderer/features/cc-agent/sidebar/__tests__/automationGroupCollapsedAlerts.test.tsx
+@@ -10,8 +10,8 @@
+  *
+  * 本测试钉住修复后的两条:
+  *   1. 收起态组头按整组汇总点红(不是只看最新一条);
+- *   2. 收起态的未读及告警可由组头或独立子行打开，同一任务不重复显示。
+- * 都从同一份判据(resolveCollapsedAttention)出发,所以不可能再「汇总说有、列表没有」。
++ *   2. 收起态只显示一个入口，未读数量和待处理状态汇总到组头，展开后能查看历史。
++ * 通过真实组件验证入口导航、展开往返与未读清除，避免历史运行再次撑满侧边栏。
+  */
+ 
+ import { createElement, useState } from 'react';
+@@ -96,8 +96,13 @@ vi.mock('../AutomationTimerIcon', () => ({
+   AutomationTimerIcon: () => null,
+ }));
+ 
++const localPhases = vi.hoisted(() => new Map<string, 'needs-interaction' | 'running' | 'error'>());
+ vi.mock('@/state/agentIslandActivity', () => ({
+-  useAgentIslandActivity: () => undefined,
++  useAgentIslandActivity: (sessionId: string) => {
++    const phase = localPhases.get(sessionId);
++    return phase ? { phase } : undefined;
++  },
++  useAgentIslandSessionsPhaseMap: () => localPhases,
+ }));
+ 
+ vi.mock('@/features/scheduler/lib/scheduleSessionBinding', () => ({
+@@ -224,6 +229,7 @@ afterEach(() => {
+ });
+ 
+ beforeEach(() => {
++  localPhases.clear();
+   for (const id of ALL_IDS) clearSessionAttention(id, { intent: 'explicit' });
+ });
+ 
+@@ -371,18 +377,19 @@ describe('AutomationSessionGroupItem — 收起态的未处理告警', () => {
+     expect(childRunIds(container)).toEqual([]);
+   });
+ 
+-  it('完成未读时组头补绿点且运行单独成行', () => {
++  it('完成未读时只在组头汇总绿点和数量', () => {
+     addSessionAttention('run-2', 'done');
+     const { container } = renderGroup({ notifications: ['run-2'] });
+ 
+     expect(screen.getByLabelText('Completed — click to view')).toBeTruthy();
+     expect(screen.queryByLabelText('Failed — click to view')).toBeNull();
+-    expect(childRunIds(container)).toEqual(['run-2']);
++    expect(childRunIds(container)).toEqual([]);
++    expect(screen.getByLabelText('ccAgent.sidebar.automationGroup.unreadRunCount').textContent).toBe('1');
+   });
+ 
+-  // 用户规则（unit）：非静默未读全部露出；最小缺口是没有 chat attention kind 的
+-  // scheduler 未读，以及超过五条的情况。通过真实组件验证已读后收回和远程镜像。
+-  it.each(['local', 'remote'] as const)('所有完成未读可见,已读或静默成功隐藏 (%s)', (kind) => {
++  // 用户规则（unit）：六条未读也只占一个入口。通过真实组件验证本机/远程
++  // 数量汇总及已读后清除；纯函数测试无法覆盖实际组头与子行的联动。
++  it.each(['local', 'remote'] as const)('多个完成未读只汇总到入口,已读后清除数量 (%s)', (kind) => {
+     const sessions = MANY_RUNS.map((run) => ({
+       ...run,
+       deviceLinkDeviceId: kind === 'remote' ? 'remote' : undefined,
+@@ -398,7 +405,8 @@ describe('AutomationSessionGroupItem — 收起态的未处理告警', () => {
+         });
+     }
+     const { container, rerender } = renderGroup({ sessions, notifications: unreadIds });
+-    expect(childRunIds(container)).toEqual(unreadIds);
++    expect(childRunIds(container)).toEqual([]);
++    expect(screen.getByLabelText('ccAgent.sidebar.automationGroup.unreadRunCount').textContent).toBe('6');
+     // 无未读的 run-0 / run-7（已读或静默成功）不因最近活动而显示。
+     if (kind === 'remote')
+       act(() => {
+@@ -419,6 +427,7 @@ describe('AutomationSessionGroupItem — 收起态的未处理告警', () => {
+       }),
+     );
+     expect(childRunIds(container)).toEqual([]);
++    expect(screen.queryByLabelText('ccAgent.sidebar.automationGroup.unreadRunCount')).toBeNull();
+   });
+ 
+   it('收起且整组是红时,点组头打开告警那条而不是最新一条', () => {
+@@ -433,46 +442,57 @@ describe('AutomationSessionGroupItem — 收起态的未处理告警', () => {
+     expect(onSessionClick).not.toHaveBeenCalledWith('run-0');
+   });
+ 
+-  // 用户规则（unit）：只在折叠时排除组头任务；展开后无论已读未读都保留子行。
++  // 用户规则（unit）：折叠时只有组头；展开后无论已读未读都保留历史子行。
+   // 从真实组头点击、冻结与显示全部验证，覆盖展开／收起往返。
+   it.each([true, false])('组头任务展开时有子行,折叠时不重复 (未读=%s)', (unread) => {
+     const onSessionClick = vi.fn();
+     const { container } = renderGroup({
+       sessions: MANY_RUNS, notifications: unread ? ['run-0', 'run-7'] : ['run-7'], onSessionClick,
+     });
+-    expect(childRunIds(container)).toEqual(['run-7']);
++    expect(childRunIds(container)).toEqual([]);
+     fireEvent.click(screen.getByText('产品决策巡检'));
+-    expect(onSessionClick).toHaveBeenLastCalledWith('run-0');
++    expect(onSessionClick).toHaveBeenLastCalledWith(unread ? 'run-0' : 'run-7');
+     fireEvent.click(screen.getByLabelText('ccAgent.sidebar.automationGroup.expand'));
+     expect(childRunIds(container)).toEqual(['run-0', 'run-1', 'run-2', 'run-3', 'run-4', 'run-7']);
+     fireEvent.click(screen.getByText('产品决策巡检'));
++    expect(onSessionClick).toHaveBeenLastCalledWith('run-0');
+     expect(childRunIds(container)).toContain('run-0');
+     fireEvent.click(screen.getByText(/ccAgent\.sidebar\.showAllSessions/));
+     expect(childRunIds(container)).toEqual(ALL_IDS);
+     fireEvent.click(screen.getByLabelText('ccAgent.sidebar.automationGroup.collapse'));
+-    expect(childRunIds(container)).toEqual(['run-7']);
++    expect(childRunIds(container)).toEqual([]);
+   });
+ 
+-  it('等待回复的旧运行单独成行,组头仍代表最新运行', () => {
++  it('等待回复的旧运行由唯一入口提示并直接打开,已读后等待状态仍保留', () => {
++    const onSessionClick = vi.fn();
+     addSessionAttention('run-2', 'awaiting');
+-    const { container, rerender } = renderGroup({ notifications: ['run-2'] });
++    localPhases.set('run-2', 'needs-interaction');
++    const { container, rerender } = renderGroup({ notifications: ['run-2'], onSessionClick });
+ 
+     expect(screen.queryByLabelText('Failed — click to view')).toBeNull();
+-    expect(screen.queryByLabelText('Awaiting your input')).toBeNull();
+-    expect(childRunIds(container)).toEqual(['run-2']);
++    expect(screen.getByLabelText('Awaiting your input')).toBeTruthy();
++    expect(childRunIds(container)).toEqual([]);
++    fireEvent.click(screen.getByText('产品决策巡检'));
++    expect(onSessionClick).toHaveBeenLastCalledWith('run-2');
++    act(() => clearSessionAttention('run-2', { intent: 'explicit' }));
+     act(() => clearSessionAttention('run-2', { intent: 'explicit' }));
+     rerender(
+       createElement(GroupHarness, {
+         sessions: RUNS,
+         notifications: [],
+         urgentSessionIds: new Set<string>(),
+         initialCollapsed: true,
++        onSessionClick,
+       }),
+     );
+     expect(childRunIds(container)).toEqual([]);
++    expect(screen.getByLabelText('Awaiting your input')).toBeTruthy();
++    fireEvent.click(screen.getByText('产品决策巡检'));
++    expect(onSessionClick).toHaveBeenLastCalledWith('run-2');
+   });
+ 
+-  it('远程旧运行等待回复时也成行,远程运行态压过本地残留的待回复', () => {
++  it('远程旧运行也由入口打开,远程运行态压过本地残留的待回复', () => {
++    const onSessionClick = vi.fn();
+     const sessions = RUNS.map((run) => ({ ...run, deviceLinkDeviceId: 'remote' }));
+     addSessionAttention('run-2', 'awaiting');
+     applyRemoteSessionActivity('remote', {
+@@ -481,9 +501,11 @@ describe('AutomationSessionGroupItem — 收起态的未处理告警', () => {
+       attention: true,
+       compactDetail: '',
+     });
+-    const { container, rerender } = renderGroup({ sessions });
+-    expect(childRunIds(container)).toEqual(['run-2']);
+-    expect(screen.queryByLabelText('Awaiting your input')).toBeNull();
++    const { container, rerender } = renderGroup({ sessions, onSessionClick });
++    expect(childRunIds(container)).toEqual([]);
++    expect(screen.getByLabelText('Awaiting your input')).toBeTruthy();
++    fireEvent.click(screen.getByText('产品决策巡检'));
++    expect(onSessionClick).toHaveBeenLastCalledWith('run-2');
+     act(() =>
+       applyRemoteSessionActivity('remote', {
+         sessionId: 'run-2',
+@@ -498,13 +520,18 @@ describe('AutomationSessionGroupItem — 收起态的未处理告警', () => {
+         notifications: ['run-2'],
+         urgentSessionIds: new Set<string>(),
+         initialCollapsed: true,
++        onSessionClick,
+       }),
+     );
+     expect(childRunIds(container)).toEqual([]);
++    expect(screen.queryByLabelText('Awaiting your input')).toBeNull();
++    expect(screen.getByLabelText('Running')).toBeTruthy();
++    fireEvent.click(screen.getByText('产品决策巡检'));
++    expect(onSessionClick).toHaveBeenLastCalledWith('run-2');
+   });
+ 
+-  it('收起态显示全部待处理运行,展开后仍按普通历史上限折叠', () => {
+-    // 收起态的六条待处理运行全部可见；展开后普通旧历史仍保留前五条上限。
++  it('收起态只汇总待处理运行,展开后可逐步查看完整历史', () => {
++    // 六条失败也不会撑开侧栏；展开保留前五条上限，并可显示全部历史。
+     const staleRuns = Array.from({ length: 8 }, (_, index) => {
+       const iso = new Date(
+         Date.parse('2026-08-10T12:00:00.000Z') - index * 3_600_000,
+@@ -517,11 +544,14 @@ describe('AutomationSessionGroupItem — 收起态的未处理告警', () => {
+       urgentSessionIds: new Set(alerts),
+     });
+ 
+-    expect(childRunIds(container)).toEqual(alerts.slice(1));
++    expect(childRunIds(container)).toEqual([]);
++    expect(screen.getByLabelText('ccAgent.sidebar.automationGroup.unreadRunCount').textContent).toBe('6');
+ 
+     fireEvent.click(screen.getByLabelText('ccAgent.sidebar.automationGroup.expand'));
+     const expandedIds = childRunIds(container);
+     expect(expandedIds).toEqual(['run-0', 'run-1', 'run-2', 'run-3', 'run-4']);
+     expect(expandedIds).not.toContain('run-7');
++    fireEvent.click(screen.getByText(/ccAgent\.sidebar\.showAllSessions/));
++    expect(childRunIds(container)).toEqual(ALL_IDS);
+   });
+ });
+
+diff --git a/apps/desktop/src/renderer/features/cc-agent/sidebar/projectCollapsedAttention.ts b/apps/desktop/src/renderer/features/cc-agent/sidebar/projectCollapsedAttention.ts
+@@ -2,6 +2,7 @@ import type { AttentionKind } from '@/lib/sessionAttentionStore';
+ import {
+   hasPendingSessionInterruption,
+   type SessionInterruptionState,
++  type SessionRightStatus,
+ } from '@cindy/maker-shared/session-activity';
+ import type { RemoteSessionActivityPhase } from '@/features/device-link/remoteSessionActivityStore';
+ 
+@@ -34,8 +35,7 @@ export interface CollapsedAttentionSummary {
+    * 项目行展开后子任务各自成行,天然可达;定时任务分组收起时子行整片不渲染,
+    * 组头此前只代表「最新一条」运行,于是「组里第 3 新的运行有未处理告警」会变成
+    * 「项目折叠头亮红点、展开却哪儿都找不到」(实测:一条被 App 重启打断、turn 从未
+-   * 收尾的定时任务运行)。分组收起态据此把告警行提上来,与本函数的 tone 同源,
+-   * 不可能再出现「汇总说有、列表没有」。
++   * 收尾的定时任务运行)。分组收起态据此打开贡献告警的运行，展开后可查看完整历史。
+    */
+   errorSessionIds: readonly string[];
+ }
+@@ -104,6 +104,101 @@ export function resolveCollapsedProjectAttentionTone(
+   return resolveCollapsedAttention(input).tone;
+ }
+ 
++export interface CollapsedAutomationGroupState {
++  kind: SessionRightStatus;
++  /** 与汇总状态对应的运行，确保点击状态入口能找到需要处理的那一条。 */
++  sessionId: string | undefined;
++  unreadCount: number;
++}
++
++/**
++ * 自动化收起后只保留一个入口，因此连旧运行的等待回复和运行中状态也必须汇总。
++ * 普通项目仍沿用红/绿汇总；这里复用其告警判据，再补齐自动化的五档状态与打开目标。
++ */
++export function resolveCollapsedAutomationGroupState(
++  input: CollapsedAttentionInput & {
++    latestSessionId?: string;
++    latestKind?: SessionRightStatus;
++    localPhaseOf?: (sessionId: string) => RemoteSessionActivityPhase | undefined;
++  },
++): CollapsedAutomationGroupState {
++  const localPhaseOf = (sessionId: string, deviceId?: string | null) =>
++    deviceId ? undefined : input.localPhaseOf?.(sessionId);
++  const attention = resolveCollapsedAttention({
++    ...input,
++    remotePhaseOf: (sessionId, deviceId) => {
++      const remotePhase = input.remotePhaseOf(sessionId, deviceId);
++      if (remotePhase) return remotePhase;
++      const localPhase = localPhaseOf(sessionId, deviceId);
++      // 本地终态是否未读仍由通知决定；活动中的等待/运行和错误不依赖未读标记。
++      return localPhase === 'needs-interaction' || localPhase === 'running' || localPhase === 'error'
++        ? localPhase
++        : undefined;
++    },
++  });
++  let awaitingSessionId: string | undefined;
++  let runningSessionId: string | undefined;
++  let doneSessionId: string | undefined;
++  const unreadSessionIds = new Set<string>();
++
++  for (const session of input.sessions) {
++    // 失败运行的未读状态可只存在于 schedule urgency，不能依赖普通通知集合。
++    if (input.urgentSessionIds.has(session.id)) unreadSessionIds.add(session.id);
++    const remotePhase = input.remotePhaseOf(session.id, session.deviceLinkDeviceId);
++    if (remotePhase) {
++      if (remotePhase === 'needs-interaction') awaitingSessionId ??= session.id;
++      else if (remotePhase === 'running') runningSessionId ??= session.id;
++      else if (remotePhase === 'completed' || remotePhase === 'error') {
++        unreadSessionIds.add(session.id);
++        if (remotePhase === 'completed') doneSessionId ??= session.id;
++      }
++      // 远程镜像优先，不把旧的本地未读/运行标记重新汇总进来。
++      continue;
++    }
++
++    const hasNotification = input.notifications.has(session.id);
++    const localPhase = localPhaseOf(session.id, session.deviceLinkDeviceId);
++    if (localPhase === 'needs-interaction') {
++      awaitingSessionId ??= session.id;
++      continue;
++    }
++    if (localPhase === 'running') {
++      runningSessionId ??= session.id;
++      continue;
++    }
++    if (localPhase === 'error') {
++      if (hasNotification) unreadSessionIds.add(session.id);
++      continue;
++    }
++    const kind = input.attentionKinds.get(session.id);
++    if (hasNotification && kind === 'awaiting') awaitingSessionId ??= session.id;
++    else if (input.runningSessionIds.has(session.id)) runningSessionId ??= session.id;
++    else if (hasNotification) {
++      unreadSessionIds.add(session.id);
++      if (kind !== 'error' && !input.urgentSessionIds.has(session.id)) doneSessionId ??= session.id;
++    }
++  }
++
++  const unreadCount = unreadSessionIds.size;
++  const state: CollapsedAutomationGroupState = attention.errorSessionIds[0]
++    ? { kind: 'error', sessionId: attention.errorSessionIds[0], unreadCount }
++    : awaitingSessionId
++      ? { kind: 'awaiting', sessionId: awaitingSessionId, unreadCount }
++      : runningSessionId
++        ? { kind: 'running', sessionId: runningSessionId, unreadCount }
++        : doneSessionId
++          ? { kind: 'done', sessionId: doneSessionId, unreadCount }
++          : { kind: 'time', sessionId: input.latestSessionId, unreadCount };
++  // 最新运行的实时状态不依赖未读标记。读过任务后，它仍可能在等待回复或继续运行。
++  const priority: Record<SessionRightStatus, number> = {
++    error: 4, awaiting: 3, running: 2, done: 1, time: 0,
++  };
++  if (input.latestSessionId && input.latestKind && priority[input.latestKind] > priority[state.kind]) {
++    return { kind: input.latestKind, sessionId: input.latestSessionId, unreadCount };
++  }
++  return state;
++}
++
+ /**
+  * 定时任务分组头右侧状态槽的最终档位。
+  *
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/de/common.json b/apps/desktop/src/renderer/i18n/locales/de/common.json
+@@ -16396,6 +16396,7 @@
+         "pausedSuffix": "(pausiert)"
+       },
+       "automationGroup": {
++        "unreadRunCount": "Ungelesene Ausführungen: {{count}}",
+         "runCount": "{{count}} Ausführungen",
+         "attentionCount": "{{count}} ausstehend",
+         "hiddenCount": "{{count}} ausgeblendet",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/en/common.json b/apps/desktop/src/renderer/i18n/locales/en/common.json
+@@ -16396,6 +16396,7 @@
+         "pausedSuffix": "(paused)"
+       },
+       "automationGroup": {
++        "unreadRunCount": "Unread runs: {{count}}",
+         "runCount": "{{count}} runs",
+         "attentionCount": "{{count}} pending",
+         "hiddenCount": "{{count}} hidden",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/es/common.json b/apps/desktop/src/renderer/i18n/locales/es/common.json
+@@ -16552,6 +16552,7 @@
+         "pausedSuffix": "(en pausa)"
+       },
+       "automationGroup": {
++        "unreadRunCount": "Ejecuciones sin leer: {{count}}",
+         "runCount": "{{count}} ejecuciones",
+         "attentionCount": "Pendientes: {{count}}",
+         "hiddenCount": "{{count}} ocultas",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/fr/common.json b/apps/desktop/src/renderer/i18n/locales/fr/common.json
+@@ -16552,6 +16552,7 @@
+         "pausedSuffix": "(en pause)"
+       },
+       "automationGroup": {
++        "unreadRunCount": "Exécutions non lues : {{count}}",
+         "runCount": "{{count}} exécutions",
+         "attentionCount": "{{count}} en attente",
+         "hiddenCount": "{{count}} masquées",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/ja/common.json b/apps/desktop/src/renderer/i18n/locales/ja/common.json
+@@ -16322,6 +16322,7 @@
+         "pausedSuffix": "（一時停止中）"
+       },
+       "automationGroup": {
++        "unreadRunCount": "未読の実行結果：{{count}}",
+         "runCount": "{{count}} 回実行",
+         "attentionCount": "{{count}} 件対応待ち",
+         "hiddenCount": "{{count}} 件折りたたみ",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/ko/common.json b/apps/desktop/src/renderer/i18n/locales/ko/common.json
+@@ -16322,6 +16322,7 @@
+         "pausedSuffix": "(일시중지됨)"
+       },
+       "automationGroup": {
++        "unreadRunCount": "읽지 않은 실행 결과: {{count}}",
+         "runCount": "{{count}}회 실행",
+         "attentionCount": "{{count}}개 대기",
+         "hiddenCount": "{{count}}개 접힘",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/pt-BR/common.json b/apps/desktop/src/renderer/i18n/locales/pt-BR/common.json
+@@ -16552,6 +16552,7 @@
+         "pausedSuffix": "(pausada)"
+       },
+       "automationGroup": {
++        "unreadRunCount": "Execuções não lidas: {{count}}",
+         "runCount": "{{count}} execuções",
+         "attentionCount": "{{count}} pendentes",
+         "hiddenCount": "{{count}} ocultas",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/pt-PT/common.json b/apps/desktop/src/renderer/i18n/locales/pt-PT/common.json
+@@ -16552,6 +16552,7 @@
+         "pausedSuffix": "(em pausa)"
+       },
+       "automationGroup": {
++        "unreadRunCount": "Execuções por ler: {{count}}",
+         "runCount": "{{count}} execuções",
+         "attentionCount": "{{count}} pendentes",
+         "hiddenCount": "{{count}} ocultas",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/zh-CN/common.json b/apps/desktop/src/renderer/i18n/locales/zh-CN/common.json
+@@ -16322,6 +16322,7 @@
+         "pausedSuffix": "（已暂停）"
+       },
+       "automationGroup": {
++        "unreadRunCount": "{{count}} 次运行未读",
+         "runCount": "{{count}} 次运行",
+         "attentionCount": "{{count}} 个待处理",
+         "hiddenCount": "{{count}} 已收起",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/zh-Hans-x-lzh/common.json b/apps/desktop/src/renderer/i18n/locales/zh-Hans-x-lzh/common.json
+@@ -16322,6 +16322,7 @@
+         "pausedSuffix": "（已暂歇）"
+       },
+       "automationGroup": {
++        "unreadRunCount": "未阅者 {{count}} 次",
+         "runCount": "{{count}} 次运行",
+         "attentionCount": "{{count}} 待处置",
+         "hiddenCount": "{{count}} 已收",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/zh-Hant-x-lzh/common.json b/apps/desktop/src/renderer/i18n/locales/zh-Hant-x-lzh/common.json
+@@ -16322,6 +16322,7 @@
+         "pausedSuffix": "（已暫歇）"
+       },
+       "automationGroup": {
++        "unreadRunCount": "未閱者 {{count}} 次",
+         "runCount": "{{count}} 次運行",
+         "attentionCount": "{{count}} 待處置",
+         "hiddenCount": "{{count}} 已收",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/zh-TW/common.json b/apps/desktop/src/renderer/i18n/locales/zh-TW/common.json
+@@ -16322,6 +16322,7 @@
+         "pausedSuffix": "（已暫停）"
+       },
+       "automationGroup": {
++        "unreadRunCount": "{{count}} 次執行未讀",
+         "runCount": "{{count}} 次執行",
+         "attentionCount": "{{count}} 待處理",
+         "hiddenCount": "{{count}} 已收起",
+
+diff --git a/apps/desktop/src/renderer/state/agentIslandActivity.ts b/apps/desktop/src/renderer/state/agentIslandActivity.ts
+@@ -11,7 +11,7 @@
+  * 动画计时器会让 publish 较频繁,这点很关键)。
+  */
+ 
+-import { useCallback, useSyncExternalStore } from 'react';
++import { useCallback, useMemo, useSyncExternalStore } from 'react';
+ 
+ import type { AgentIslandSessionActivity } from '../../shared/agentIsland';
+ 
+@@ -113,6 +113,24 @@ export function useAgentIslandActivity(sessionId: string): AgentIslandSessionAct
+   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+ }
+ 
++/** Group-local phases: unrelated sessions and detail-only updates do not redraw the header. */
++export function useAgentIslandSessionsPhaseMap(
++  sessionIds: readonly string[],
++): ReadonlyMap<string, AgentIslandSessionActivity['phase']> {
++  const getSnapshot = () =>
++    JSON.stringify(
++      sessionIds.flatMap((id) => {
++        const phase = activityMap.get(id)?.phase;
++        return phase ? [[id, phase]] : [];
++      }),
++    );
++  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
++  return useMemo(
++    () => new Map<string, AgentIslandSessionActivity['phase']>(JSON.parse(snapshot)),
++    [snapshot],
++  );
++}
++
+ /**
+  * 整张活动表。给「一次渲染里要看很多会话」的列表用(伙伴侧栏按 canonical 会话
+  * 判断谁在说话),这类地方没法逐行调 useAgentIslandActivity。
+
+diff --git a/docs/design-rules/DESIGN.md b/docs/design-rules/DESIGN.md
+@@ -847,15 +847,13 @@ When the initiating computer itself only accepts encrypted connections, the same
+ 
+ ### Desktop task sidebar identity
+ 
+-Individually pinned tasks stay out of the ordinary list. Automatic task groups use two presentation modes:
+-while expanded, history includes the task represented by the group header, whether read or unread;
+-while collapsed, omit that task from the visible attention rows so it only appears in the header.
+-Deduplicate collapsed rows by task ID, not title. The header keeps its existing click target (latest run,
+-or the failing run when a collapsed group reports an error). Expanded preview limits, frozen layouts
+-and “Show all” continue to include the header task.
+-Non-silent unread runs and pending errors/replies remain visible while collapsed, without a five-row cap;
+-a task already represented by the header satisfies this visibility rule. Silent successful runs and
+-read history stay hidden unless the group is expanded.
++Individually pinned tasks stay out of the ordinary list. A collapsed automatic task group occupies one
++entry regardless of how many runs are unread. Its header summarizes unread runs and the highest-priority
++state: error, awaiting input, running, completed unread, then time. Clicking opens the run contributing
++that state, falling back to the latest run when none needs attention. Local live state and authoritative
++remote activity remain visible through this summary even after reading a waiting or running task.
++History appears only after explicit expansion. Expanded preview limits, attention exemptions, frozen
++layouts and “Show all” continue to include the header task and preserve access to every run.
+ Implementation: `AutomationSessionGroupItem.tsx` and `automationSidebarGrouping.ts`; regression:
+ `automationGroupCollapsedAlerts.test.tsx` and the `automation-unread` UI fixture.
+ 

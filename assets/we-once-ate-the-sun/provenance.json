@@ -1,0 +1,211 @@
+[
+  {
+    "file": "assets/we-once-ate-the-sun/archivist_and_fig.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/still-photos-20261119/Still_Photos_PNG/01_ARCHIVIST_AND_FIG.png",
+    "kind": "video-still",
+    "width": 1280,
+    "height": 720,
+    "sha256": "78ecd0b2f9dd630ffe4026eddcb546158ba073198aaded76eab3f1233f54fbe7",
+    "source_video": "/Users/xd/Desktop/we once ate the sun.mp4",
+    "source_seconds": 203.2,
+    "note": "Previously verified native frame; web compression only"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/fig_and_ant.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/still-photos-20261119/Still_Photos_PNG/02_FIG_AND_ANT.png",
+    "kind": "video-still",
+    "width": 1280,
+    "height": 720,
+    "sha256": "6207f977b77b32c40e417efe53fae8cef3746cbc2d17c1468c76c43ecc44385d",
+    "source_video": "/Users/xd/Desktop/we once ate the sun.mp4",
+    "source_seconds": 5.1,
+    "note": "Previously verified native frame; web compression only"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/earth_ruins.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/still-photos-20261119/Still_Photos_PNG/03_EARTH_RUINS.png",
+    "kind": "video-still",
+    "width": 1280,
+    "height": 720,
+    "sha256": "f6c1da9428c0987dcd971d8c9d6d9113bb80e46715f8183b72a2ea657c2e40a5",
+    "source_video": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/prologue-02-ruins-20261114/PROLOGUE_02_RUINS_720p_8s_V01.mp4",
+    "source_seconds": 6.0,
+    "note": "Previously verified native frame; web compression only"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/human_sharing.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/still-photos-20261119/Still_Photos_PNG/04_HUMAN_SHARING.png",
+    "kind": "video-still",
+    "width": 1280,
+    "height": 720,
+    "sha256": "24eb46b7b7814dd2d5103ff367078e15e725606ec228ea44375dd307b63cd261",
+    "source_video": "/Users/xd/Desktop/we once ate the sun.mp4",
+    "source_seconds": 110.1,
+    "note": "Previously verified native frame; web compression only"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/human_care.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/still-photos-20261119/Still_Photos_PNG/05_HUMAN_CARE.png",
+    "kind": "video-still",
+    "width": 1280,
+    "height": 720,
+    "sha256": "475d4e2f3fb639ffe3bcb94b132e70f7d4f09dee090cd27a8f15fdfff1b57927",
+    "source_video": "/Users/xd/Desktop/we once ate the sun.mp4",
+    "source_seconds": 135.1,
+    "note": "Previously verified native frame; web compression only"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/the_kitchen.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/still-photos-20261119/Still_Photos_PNG/06_THE_KITCHEN.png",
+    "kind": "video-still",
+    "width": 1280,
+    "height": 720,
+    "sha256": "0c6984d6980573e1117cf6120ab360646c402daf9dd44c1b911420a5ed5b6d76",
+    "source_video": "/Users/xd/Desktop/we once ate the sun.mp4",
+    "source_seconds": 75.1,
+    "note": "Previously verified native frame; web compression only"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/reconstructed_fig.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/still-photos-20261119/Still_Photos_PNG/07_RECONSTRUCTED_FIG.png",
+    "kind": "video-still",
+    "width": 1280,
+    "height": 720,
+    "sha256": "22773d33d35df2346d4037287a92d1fd15becc6663519e62a5998b3a31e4b4a3",
+    "source_video": "/Users/xd/Desktop/we once ate the sun.mp4",
+    "source_seconds": 190.1,
+    "note": "Previously verified native frame; web compression only"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/ant_searching.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/still-photos-20261119/Still_Photos_PNG/08_ANT_SEARCHING.png",
+    "kind": "video-still",
+    "width": 1280,
+    "height": 720,
+    "sha256": "4c9fafa69a0c6f90d2603a6ccf8d3942ba1e385029be3a5859b94a6f869a6ac0",
+    "source_video": "/Users/xd/Desktop/we once ate the sun.mp4",
+    "source_seconds": 180.1,
+    "note": "Previously verified native frame; web compression only"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/concept-membrane.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/archivist-c2/midjourney-reference/A_membrane_V03_reference.jpg",
+    "kind": "historical-character-study",
+    "width": 1600,
+    "height": 900,
+    "sha256": "04aab68331560efac4e16d0a276e8ef62eca7296743d203dc766ed9b51d33fbc",
+    "board_id": "3e77034b-ded2-4660-a659-ba2dcf99b175",
+    "node_id": "1a431abf-587f-4105-91a9-25f29fb304bf"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/concept-mineral.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/archivist-c2/midjourney-reference/B_mineral_layers_V03_reference.jpg",
+    "kind": "historical-character-study",
+    "width": 1280,
+    "height": 720,
+    "sha256": "effb2774bd86a484a3553cee70b33155a6f0ab9b0a7494fad0a478296d7d382e",
+    "board_id": "3e77034b-ded2-4660-a659-ba2dcf99b175",
+    "node_id": "a9967d8d-8bf8-408e-8dfc-9d76b9deb3dd"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/concept-tendrils.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/archivist-c2/C2_03_tendrils_V02.jpg",
+    "kind": "historical-character-study",
+    "width": 1600,
+    "height": 900,
+    "sha256": "f7a0714a2878f6bc9b6bbd204c8a5fd8b672efd1dd2ce210da01f879b2429597",
+    "board_id": "3e77034b-ded2-4660-a659-ba2dcf99b175",
+    "node_id": "image-62c67491-cdc0-43c8-a096-58e7f24b0c94"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/position-ng.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/ending-continuity-20261120/board-upload/02A 回应首 末梢在蚁旁停住.png",
+    "kind": "rejected-keyframe",
+    "width": 1600,
+    "height": 900,
+    "sha256": "df1a963a9f41ba9c20c2ca9649f5bc45a611053d5a862bd39214b3e960fee86a",
+    "node_id": "image-e93f2904-fc6a-4d7e-a09c-0deaba9e218d"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/position-corrected.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/ending-continuity-20261120/relation-wide-aligned-v03/board-upload/02A V03首 前侧裂缝小蚁与末梢.png",
+    "kind": "revised-keyframe",
+    "width": 1600,
+    "height": 900,
+    "sha256": "544bf1aa8c764419827781f759cb063fe76c94e6431246718508f3f914628ed7",
+    "node_id": "image-f2dafe99-33c9-4fc4-8f56-8f498589ee1c",
+    "note": "Keyframe subsequently authorized for video; motion is not accepted by this still"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/withdraw-keyframe.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/ending-20b-repair-20261115/20B2_END_TENTACLE_RETRACTED_VISIBLE_V03.png",
+    "kind": "generated-end-keyframe",
+    "width": 1600,
+    "height": 901,
+    "sha256": "2eba80ea2298b33597099796019b8bbfd074179b69c37320f63089b1c6762ade"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/touchdown-keyframe.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/ending-20b-repair-20261115/20B2_START_ACTUAL_TOUCHDOWN_V03.png",
+    "kind": "actual-previous-video-end-frame",
+    "width": 1280,
+    "height": 720,
+    "sha256": "becb197776495413018429e3818c328fe314b877d5a7d3ef251d6f055511e805"
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/touchdown.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/portfolio-case-20261123/extracted/touchdown.png",
+    "kind": "new-video-still",
+    "width": 1280,
+    "height": 720,
+    "sha256": "23d1956df3db877f018be57528c71ebe831e7f686d375bdfea0fa4924c83b024",
+    "source_video": "output/ending-review-ordered-20261115/06_20B1_移低接地_V02.mp4",
+    "source_seconds": 3.7916666666666665
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/withdraw.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/portfolio-case-20261123/extracted/withdraw.png",
+    "kind": "new-video-still",
+    "width": 1280,
+    "height": 720,
+    "sha256": "ccef841b3415bb27d239f9f587c3f9efbee4b960cab74ee0ef379677b4b72779",
+    "source_video": "output/ending-review-ordered-20261115/07_20B2_触索实体收回_V03.mp4",
+    "source_seconds": 3.7916666666666665
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/sapling.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/portfolio-case-20261123/extracted/sapling.png",
+    "kind": "new-video-still",
+    "width": 1280,
+    "height": 720,
+    "sha256": "b0dd53a52bcc56a4eefc9d52f1157f6d02e13e8bf97c1d721bd42814b5b12aca",
+    "source_video": "output/ending-review-ordered-20261115/10_22_小树苗微光风动_V03.mp4",
+    "source_seconds": 2
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/living-wide.webp",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/portfolio-case-20261123/extracted/living-wide.png",
+    "kind": "new-video-still",
+    "width": 1280,
+    "height": 720,
+    "sha256": "996066c022ec652a424578d8b50f419318e5275e7ddb9c1e6967c3505ced11f4",
+    "source_video": "output/ending-full-motion-20261120/v02/FULL_WIDE_LIVING_MOTION_720p_6S_V02.mp4",
+    "source_seconds": 3
+  },
+  {
+    "file": "assets/we-once-ate-the-sun/board-workflow.webp",
+    "kind": "historical-board-screenshot",
+    "source": "/Users/xd/Desktop/anker/黑客松/aigc/impossible/output/ending-20b-repair-20261115/TapNow_GROUPS_SEPARATED.jpg",
+    "capture_date": "2026-11-15",
+    "crop": [
+      90,
+      160,
+      700,
+      530
+    ],
+    "width": 610,
+    "height": 370,
+    "sha256": "00462a199bc57f5a4d1e00aef94f820826b31f2efb0b8917ff7ed31a8de5b22c",
+    "note": "Crop of archived TapNow UI capture, not a new live screenshot. Removed account controls and unrelated UI."
+  }
+]

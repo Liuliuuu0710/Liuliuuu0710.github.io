@@ -1,0 +1,20 @@
+/* Film evidence only; shared portfolio styles are preserved. */
+.film-case .film-figure{margin:28px 0 0;min-width:0}
+.film-case .film-image-link{display:block;border:0;overflow:hidden;background:#171a1b;outline-offset:5px}
+.film-case .film-image-link img{width:100%;height:auto;aspect-ratio:16/9;object-fit:contain;transition:opacity .2s}
+.film-case .film-image-link:hover img{opacity:.88}
+.film-case .film-figure figcaption{display:grid;gap:5px;padding-top:12px;font-size:14px;line-height:1.7;color:var(--muted)}
+.film-case .film-figure figcaption strong{font-size:15px;font-weight:500;color:var(--fg)}
+.film-case .film-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin:28px 0}
+.film-case .film-grid .film-figure{margin:0}
+.film-case .film-grid-three{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.film-case .film-quote{margin:36px 0 0;padding:4px 0 4px 22px;border-left:2px solid var(--accent);font-size:clamp(19px,2vw,24px);line-height:1.8;letter-spacing:-.02em}
+.film-case .detail-section p.film-note{font-size:14px;line-height:1.8;color:var(--muted);margin-top:20px}
+.film-case #reflection .detail-boundary{margin-top:28px}
+@media(max-width:1000px){.film-case .film-grid-three{grid-template-columns:repeat(2,minmax(0,1fr))}.film-case .film-grid-three .film-figure:last-child{grid-column:1/-1}}
+@media(max-width:640px){.film-case .film-grid,.film-case .film-grid-three{grid-template-columns:minmax(0,1fr);gap:28px}.film-case .film-grid-three .film-figure:last-child{grid-column:auto}.film-case .film-figure{margin-top:24px}.film-case .film-quote{padding-left:18px}}
+@media(prefers-reduced-motion:reduce){.film-case .film-image-link img{transition:none}}
+
+.film-case .film-board{max-width:640px;margin-bottom:36px}.film-case .film-board img{aspect-ratio:610/370}
+
+.film-case .film-player video{display:block;width:100%;height:auto;aspect-ratio:960/544;background:#171a1b;border:1px solid var(--line);border-radius:12px}.film-case .film-player video:focus-visible{outline:2px solid var(--accent);outline-offset:4px}

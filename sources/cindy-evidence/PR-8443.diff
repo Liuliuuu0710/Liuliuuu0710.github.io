@@ -1,0 +1,1143 @@
+diff --git a/apps/desktop/scripts/fixtures/group-capability-notices/fixture.tsx b/apps/desktop/scripts/fixtures/group-capability-notices/fixture.tsx
+@@ -0,0 +1,9 @@
++import { AppFrame, mountPage } from '../../ui-page/harness';
++import { BotGroupCapabilityNotice } from '../../../src/renderer/features/bots/BotGroupCapabilityNotice';
++
++mountPage({ render: () => <AppFrame header={false}>
++  <div className="mx-auto flex max-w-[640px] flex-col gap-8 p-8">
++    {['GROUP_AUTHORIZATION_REQUIRED', 'GROUP_AUTHORIZATION_UNAVAILABLE', 'ATTACHMENTS_UNAVAILABLE'].map(code =>
++      <BotGroupCapabilityNotice key={code} name="Aster" code={code} />)}
++  </div>
++</AppFrame> });
+
+diff --git a/apps/desktop/scripts/fixtures/group-capability-notices/ui-page.mjs b/apps/desktop/scripts/fixtures/group-capability-notices/ui-page.mjs
+@@ -0,0 +1,10 @@
++export default {
++  name: 'group-capability-notices', entry: './fixture.tsx', viewport: { width: 760, height: 520 },
++  real: 'BotGroupCapabilityNotice as used in BotGroupTimelineItem; theme, type and all supported translations',
++  notCovered: 'The complete group timeline, IPC, network delivery, server permissions, native mobile UI and attachment IO',
++  cases: { default: { about: 'Three distinct non-terminal operation reasons with recovery advice' } },
++  async check(page, ui) {
++    for (const code of ['GROUP_AUTHORIZATION_REQUIRED', 'GROUP_AUTHORIZATION_UNAVAILABLE', 'ATTACHMENTS_UNAVAILABLE'])
++      await page.getByText(await ui.t(`bots.groupChat.notice.capability.${code}`, { name: 'Aster' }), { exact: true }).waitFor();
++  },
++};
+
+diff --git a/apps/desktop/src/main/maker-ipc/__tests__/botGroupToolAuthorization.test.ts b/apps/desktop/src/main/maker-ipc/__tests__/botGroupToolAuthorization.test.ts
+@@ -66,3 +66,27 @@ describe('live group tool authority', () => {
+     });
+   });
+ });
++
++// Unit: #8443 review distinguishes intentional permission tiers from revoked or
++// unavailable authorization. Only failed live validation may notify the group.
++it.each(['chat', 'tools', 'revoked', 'transport', 'stale', 'report-fails'])('keeps the original %s denial and reports only validation failures', async condition => {
++  const onDenied = vi.fn(async (_error: GroupToolAuthorizationError) => { if (condition === 'report-fails') throw new Error('report unavailable'); });
++  releases.push(registerGroupToolAuthority('notice-lane', {
++    botId: 'bot', mode: condition === 'chat' ? 'chat' : condition === 'tools' ? 'tools' : 'owner',
++    isCurrent: () => condition !== 'stale', onDenied,
++    validate: async () => {
++      if (condition === 'transport') throw new Error('private test-only transport detail');
++      throw new GroupToolAuthorizationError();
++    },
++  }));
++  await expect(authorizeGroupTool('notice-lane', 'bot', 'owner-action')).rejects.toMatchObject({
++    code: condition === 'transport' ? 'GROUP_AUTHORIZATION_UNAVAILABLE' : 'GROUP_AUTHORIZATION_REQUIRED',
++  });
++  await Promise.resolve();
++  if (['chat', 'tools', 'stale'].includes(condition)) expect(onDenied).not.toHaveBeenCalled();
++  else {
++    expect(onDenied).toHaveBeenCalledOnce();
++    expect(onDenied.mock.calls[0][0]).toBeInstanceOf(GroupToolAuthorizationError);
++    expect(onDenied.mock.calls[0][0].message).not.toContain('private test-only');
++  }
++});
+
+diff --git a/apps/desktop/src/main/maker-ipc/__tests__/chatServer.test.ts b/apps/desktop/src/main/maker-ipc/__tests__/chatServer.test.ts
+@@ -59,7 +59,18 @@ vi.mock('node:http', async () => {
+     fixture.requests.push({ url: String(url), token: options.headers.Authorization, actor: (options.headers as Record<string, string>)['X-Chat-Actor'] });
+     const req = Object.assign(new EventEmitter(), {
+       end: (data?: string) => {
+-        void Promise.resolve().then(() => fixture.handle(new URL(url).pathname.slice(3) + new URL(url).search, options.method, data ? JSON.parse(data) : undefined))
++        void Promise.resolve().then(() => {
++          const route = new URL(url).pathname.slice(3) + new URL(url).search;
++          const body = data ? JSON.parse(data) : undefined;
++          // #8443 / unit HTTP boundary: notice POSTs obey the existing message
++          // contract; accepting clientId here used to hide rejected real sends.
++          if (options.method === 'POST' && route.endsWith('/messages')
++            && body?.content?.some((block: { namespace?: string }) => block.namespace === 'cindy.capability-notice')
++            && (typeof body.operationId !== 'string' || !/^[a-zA-Z0-9_.:-]{8,160}$/.test(body.operationId) || 'clientId' in body)) {
++            return { status: 400, body: { error: { code: 'VALIDATION_FAILED' } } };
++          }
++          return fixture.handle(route, options.method, body);
++        })
+           .then(result => {
+             const response = Object.assign(new EventEmitter(), { statusCode: result?.status ?? 200, headers: result?.headers ?? {} });
+             callback(response);
+@@ -89,7 +100,7 @@ import { botGroupRuntimeFailureCode, settleClosedBotGroupTurn, settleUndispatche
+ import { authorizeGroupTool } from '../botGroupToolAuthorization.js';
+ import { createAutoPermissionReviewer, type AutoPermissionReviewerDeps } from '../../maker-host/auto-permission-reviewer.js';
+ import { createAutoReviewIntentProjection } from '@cindy/maker-shared/auto-review-intent';
+-import { botGroupQuoteFromMessage, buildBotGroupQuoteCard, buildBotGroupTaskCard, buildBotGroupThreadShareCard } from '../../../shared/botGroupChat.js';
++import { buildBotGroupCapabilityNotice, botGroupQuoteFromMessage, buildBotGroupQuoteCard, buildBotGroupTaskCard, buildBotGroupThreadShareCard } from '../../../shared/botGroupChat.js';
+ import type { BotGroupChatService, BotGroupChatServiceDeps } from '../botGroupChatService.js';
+ import type { ChatHistoryState } from '@cindy/maker-shared/chat-history';
+ 
+@@ -890,6 +901,19 @@ describe('Chat Server result delivery and refresh', () => {
+     expect(memberWrites).toHaveLength(1);
+     expect(memberWrites[0]?.[2]).toMatchObject({ actorId: botId, action: 'invite' });
+   });
++  it.each(['bot', 'human'])('projects a capability card as a notice only for a companion author (%s)', kind => {
++    const notice = { id: '60000000-0000-4000-8000-000000000001', seq: '1', authorId: botId, author: { kind, name: 'Bot' },
++      deleted: false, threadRootId: null, createdAt: '2026-11-02T00:00:00Z',
++      content: [buildBotGroupCapabilityNotice('ATTACHMENTS_UNAVAILABLE', 'Some attachments were not delivered')] };
++    fixture.handle.mockImplementation(route => route.includes('/messages?') ? { body: [notice] } : response(route));
++    return service.getGroup(roomId).then(result => {
++      expect(result.ok).toBe(true);
++      if (!result.ok) throw new Error('Expected group');
++      expect(result.group.messages[0]).toMatchObject({ kind: kind === 'bot' ? 'notice' : 'message', content: 'Some attachments were not delivered' });
++      expect(result.group.messages[0].capabilityNoticeCode).toBe(kind === 'bot' ? 'ATTACHMENTS_UNAVAILABLE' : undefined);
++    });
++  });
++
+   it.each(['structured', 'old-marker', 'chat-forgery'])('projects imported runtime notices safely: %s', async shape => {
+     const imported = { id: '60000000-0000-4000-8000-000000000001', seq: '1', authorId: selfId,
+       author: { kind: 'human', name: 'Owner' }, origin: shape === 'chat-forgery' ? 'chat' : 'import', deleted: false, threadRootId: null,
+@@ -1300,6 +1324,88 @@ describe('Chat Server result delivery and refresh', () => {
+     await vi.advanceTimersByTimeAsync(2000);
+     expect(deps.dispatch).toHaveBeenCalledOnce();
+   }
++  it.each([[false, 0], [true, 0], [false, 1], [true, 1], [true, 3]] as const)('posts a validation failure as the companion without settling or replaying its turn (temporary: %s, retry: %s)', async (temporary, retry) => {
++    const posted: unknown[] = [];
++    let invalid = false;
++    fixture.handle.mockImplementation((route, method, body) => {
++      if (route === '/executions/claim') { const next = claimed ? null : { ...execution, requester_id: selfId, access_mode: 'owner' }; claimed = true; return { body: { execution: next } }; }
++      if (route.endsWith('/members')) return invalid && temporary ? { status: 503, body: { code: 'UNAVAILABLE' } } : { body: [
++        { id: botId, kind: 'bot', ownerActorId: selfId, state: 'joined', accessRevision: invalid ? 2 : 1 },
++        { id: selfId, kind: 'human', ownerActorId: selfId, state: 'joined' },
++      ] };
++      if (route === `/conversations/${roomId}/messages` && method === 'POST') {
++        posted.push(body);
++        return posted.length <= retry ? { status: 503, body: { error: { code: 'UNAVAILABLE' } } } : { body: { id: 'notice' } };
++      }
++      return response(route);
++    });
++    await start();
++    invalid = true;
++    const code = temporary ? 'GROUP_AUTHORIZATION_UNAVAILABLE' : 'GROUP_AUTHORIZATION_REQUIRED';
++    await expect(authorizeGroupTool('lane', 'local-bot', 'owner-action')).rejects.toMatchObject({ code });
++    await expect(authorizeGroupTool('lane', 'local-bot', 'owner-action')).rejects.toMatchObject({ code });
++    await vi.advanceTimersByTimeAsync(0);
++    if (retry) await vi.advanceTimersByTimeAsync(3000);
++    const attempts = retry === 3 ? 3 : retry + 1;
++    expect(posted).toHaveLength(attempts);
++    if (retry) expect(posted[1]).toEqual(posted[0]);
++    if (retry === 3) {
++      // #8443: exhausting delivery must not reset the budget on the next denial.
++      await expect(authorizeGroupTool('lane', 'local-bot', 'owner-action')).rejects.toMatchObject({ code });
++      await vi.advanceTimersByTimeAsync(3000);
++      expect(posted).toHaveLength(3);
++    }
++    expect(posted[0]).toMatchObject({ operationId: `capability:${execution.id}:${execution.epoch}:${code}`, content: [{ type: 'card', namespace: 'cindy.capability-notice', data: { code } }], mentions: [] });
++    expect(fixture.requests.filter(request => request.url.endsWith(`/conversations/${roomId}/messages`)).at(-1)?.actor).toBe(botId);
++    expect(deliveries()).toHaveLength(0);
++    expect(deps.dispatch).toHaveBeenCalledOnce();
++  });
++
++  // #8443 review: real POST/429 parsing must keep each retry outside Retry-After,
++  // preserving the payload/operationId and the three-attempt budget (unit fake clock).
++  it.each([false, true])('honors Retry-After for capability notices (exhausted: %s)', async exhausted => {
++    let invalid = false;
++    const posted: Array<{ at: number; body: unknown }> = [];
++    fixture.handle.mockImplementation((route, method, body) => {
++      if (route === '/executions/claim') { const next = claimed ? null : { ...execution, requester_id: selfId, access_mode: 'owner' }; claimed = true; return { body: { execution: next } }; }
++      if (route.endsWith('/members')) return invalid ? { status: 503, body: { code: 'UNAVAILABLE' } } : { body: [
++        { id: botId, kind: 'bot', ownerActorId: selfId, state: 'joined', accessRevision: 1 },
++        { id: selfId, kind: 'human', ownerActorId: selfId, state: 'joined' },
++      ] };
++      if (route === `/conversations/${roomId}/messages` && method === 'POST') {
++        posted.push({ at: Date.now(), body });
++        return exhausted || posted.length === 1
++          ? { status: 429, headers: { 'retry-after': '120' }, body: { error: { code: 'RATE_LIMITED' } } }
++          : { body: { id: 'notice' } };
++      }
++      return response(route);
++    });
++    await start();
++    invalid = true;
++    await expect(authorizeGroupTool('lane', 'local-bot', 'owner-action')).rejects.toMatchObject({ code: 'GROUP_AUTHORIZATION_UNAVAILABLE' });
++    invalid = false;
++    await vi.advanceTimersByTimeAsync(0);
++    expect(posted).toHaveLength(1);
++    await vi.advanceTimersByTimeAsync(119999);
++    expect(posted).toHaveLength(1);
++    await vi.advanceTimersByTimeAsync(1);
++    expect(posted).toHaveLength(2);
++    expect(posted[1].at - posted[0].at).toBeGreaterThanOrEqual(120000);
++    expect(posted[1].body).toEqual(posted[0].body);
++    if (exhausted) {
++      await vi.advanceTimersByTimeAsync(119999);
++      expect(posted).toHaveLength(2);
++      await vi.advanceTimersByTimeAsync(1);
++      expect(posted).toHaveLength(3);
++      expect(posted[2].body).toEqual(posted[0].body);
++      invalid = true;
++      await expect(authorizeGroupTool('lane', 'local-bot', 'owner-action')).rejects.toMatchObject({ code: 'GROUP_AUTHORIZATION_UNAVAILABLE' });
++      await vi.advanceTimersByTimeAsync(240000);
++      expect(posted).toHaveLength(3);
++    }
++    expect(deliveries()).toHaveLength(0);
++    expect(deps.dispatch).toHaveBeenCalledOnce();
++  });
+   const terminal = { sessionId: 'lane', activeInputClientId: null, outcome: 'done' as const, resultText: 'Finished reply' };
+   const deliveries = () => fixture.handle.mock.calls.filter(([, , body]) => body?.action === 'complete');
+   const processRecord = { type: 'card', namespace: 'cindy.work-record', schemaRevision: 1, fallback: '',
+
+diff --git a/apps/desktop/src/main/maker-ipc/botGroupToolAuthorization.ts b/apps/desktop/src/main/maker-ipc/botGroupToolAuthorization.ts
+@@ -10,6 +10,7 @@ export interface GroupToolAuthority {
+   mode: 'owner' | 'chat' | 'tools';
+   validate(): Promise<void>;
+   isCurrent(): boolean;
++  onDenied?(error: GroupToolAuthorizationError): Promise<void>;
+ }
+ const authorities = new Map<string, GroupToolAuthority>();
+ 
+@@ -28,6 +29,14 @@ export function registerGroupToolAuthority(sessionId: string, authority: GroupTo
+ 
+ export async function authorizeGroupTool(sessionId: string, botId: string, operation: GroupToolOperation) {
+   const authority = authorities.get(sessionId);
++  const denied = (temporary = false) => {
++    const error = new GroupToolAuthorizationError(temporary);
++    if (authority && authorities.get(sessionId) === authority && authority.botId === botId && authority.isCurrent()) {
++      // Reporting must not grant the operation or replace its original denial.
++      void Promise.resolve().then(() => authority.onDenied?.(error)).catch(() => undefined);
++    }
++    return error;
++  };
+   const assertCurrent = () => {
+     if (!authority || authorities.get(sessionId) !== authority || authority.botId !== botId
+       || !authority.isCurrent() || authority.mode === 'chat'
+@@ -36,10 +45,10 @@ export async function authorizeGroupTool(sessionId: string, botId: string, opera
+   assertCurrent();
+   try { await authority!.validate(); } catch (error) {
+     const revoked = error instanceof GroupToolAuthorizationError && !error.temporary;
+-    if (revoked && authorities.get(sessionId) === authority) authorities.delete(sessionId);
++    if (revoked && authorities.get(sessionId) === authority) { denied(); authorities.delete(sessionId); }
+     // A transport failure denies this attempt, without permanently revoking a live lease.
+     assertCurrent();
+-    throw new GroupToolAuthorizationError(!revoked);
++    throw denied(!revoked);
+   }
+   assertCurrent();
+   return { assertCurrent, mode: authority!.mode, sourceGroup: authority!.sourceGroup, refresh: async (): Promise<void> => {
+
+diff --git a/apps/desktop/src/main/maker-ipc/chatServer.ts b/apps/desktop/src/main/maker-ipc/chatServer.ts
+@@ -1,4 +1,3 @@
+-import { botGroupProcessCard, readBotGroupProcessCard } from '../../shared/botGroupChat.js';
+ import { createChatWorkPolling, createWorkRequestGate, WorkRequestDeferred } from './chatWorkPolling.js';
+ import { teammateChatActivity } from '@cindy/maker-shared/teammate-status';
+ import { prepareChatReplyFiles } from './chatServerReplyFiles.js';
+@@ -55,7 +54,8 @@ import {
+   type BotGroupThreadShareView, type BotGroupThreadSummary, type BotGroupThreadUnread,
+   type BotGroupDetail, type BotGroupMessageReaders, type BotGroupSpeaker, type BotGroupPlanView, type BotGroupFailure, type BotGroupMessageView, type BotGroupAttachment, type ChatServerApi,
+   botGroupQuoteAttachmentName, botGroupQuoteExcerpt, botGroupQuoteFromMessage, buildBotGroupQuoteCard, readBotGroupQuote, readBotGroupQuoteCard, type BotGroupQuoteView,
+-  readBotGroupTaskCard, botGroupMessageSummaryText,
++  readBotGroupTaskCard, botGroupMessageSummaryText, botGroupProcessCard, readBotGroupProcessCard,
++  readBotGroupCapabilityNotice, buildBotGroupCapabilityNotice, type BotGroupCapabilityNoticeCode,
+ } from '../../shared/botGroupChat.js';
+ import type { BotGroupChatService, BotGroupChatServiceDeps, BotGroupLaneTerminal, BotGroupPreparedAttachments, BotGroupTaskPostInput, BotGroupTaskPostResult } from './botGroupChatService.js';
+ import { readPersistedReplyText } from './botGroupChatService.js';
+@@ -135,6 +135,7 @@ interface Running {
+   beforeFiles?: Map<string, string>;
+   pauseStarted?: number;
+   releaseToolAuthority?: () => void;
++  capabilityNotices?: Map<BotGroupCapabilityNoticeCode, Promise<void>>;
+ }
+ export class ChatResponseError extends Error {
+   constructor(code: string, readonly status: number, readonly retryAt?: number, readonly details?: unknown) { super(code); }
+@@ -223,7 +224,7 @@ const groupInput = z.object({ name: z.string().trim().min(1).max(40), botIds: z.
+ const taskCardOf = (m: Message) => m.author.kind === 'bot' ? m.content.map(readBotGroupTaskCard).find(Boolean) ?? null : null;
+ const bodyBlocks = (m: Message) => m.content.filter(b => !readBotGroupProcessCard(b) && (b.namespace !== 'cindy.local-history' || b.data?.activity === true) && !readBotGroupQuoteCard(b)
+   && !(m.author.kind === 'bot' && readBotGroupTaskCard(b)));
+-const contentText = (m: Message, forModel: boolean) => m.deleted ? '（消息已删除）' : readImportedBotGroupRuntimeFailureCode(m) ? '' : bodyBlocks(m)
++const contentText = (m: Message, forModel: boolean) => m.deleted ? '（消息已删除）' : forModel && readBotGroupCapabilityNotice(m) ? '' : readImportedBotGroupRuntimeFailureCode(m) ? '' : bodyBlocks(m)
+   .flatMap(b => b.type !== 'media' ? [b.text ?? b.fallback ?? ''] : forModel ? [b.text ?? b.fallback ?? `[附件: ${b.caption ?? '文件'}]`] : []).join('\n');
+ /** What a Bot reads: each attachment stays a `[附件: …]` line beside the text. */
+ // A share's fallback is an old-client display only, never authoritative model context.
+@@ -539,6 +540,7 @@ function createChatServer(local: BotGroupChatService, deps: BotGroupChatServiceD
+   let profileRefreshedAt = 0;
+   /** Turns in progress by execution ID: one companion may answer in several conversations at once. */
+   const running = new Map<string, Running>();
++  const capabilityNoticeRetries = new Map<ReturnType<typeof setTimeout>, () => void>();
+   // Only a verified live native context may consume a text cursor. Never persist
+   // this across host restarts: a cold/resumed context gets background again.
+   const textProgress = new Map<string, NonNullable<Running['textProgress']> & {
+@@ -1453,6 +1455,7 @@ function createChatServer(local: BotGroupChatService, deps: BotGroupChatServiceD
+       content: displayText(m), threadRootId: m.threadRootId, replyCount: 0, reactions: [], mentions: { all: false, botIds: [] },
+       noticeCode, planId: null, files: [], attachments: [], createdAt: Date.parse(m.createdAt),
+     };
++    const capabilityNoticeCode = readBotGroupCapabilityNotice(m);
+     const member = members.find(member => member.id === m.authorId);
+     const planCard = m.content.find(b => b.namespace === 'cindy.plan');
+     const legacy = m.origin === 'import' ? m.content.find(b => b.namespace === 'cindy.local-history')?.data : undefined;
+@@ -1465,7 +1468,7 @@ function createChatServer(local: BotGroupChatService, deps: BotGroupChatServiceD
+     const quote = m.deleted || planCard ? null : readBotGroupQuote(m.content);
+     const task = m.deleted || planCard ? null : taskCardOf(m);
+     const process = !m.deleted && m.author.kind === 'bot' ? m.content.map(readBotGroupProcessCard).find(Boolean) : null;
+-    return { id: m.id, maskAttribution: m.maskAttribution, sequence: Number(m.seq), serverSequence: m.seq, deleted: m.deleted, kind: planCard ? 'plan' : 'message', authorKind: legacy?.authorKind === 'system' ? 'system' : m.author.kind === 'human' ? 'user' : 'bot',
++    return { id: m.id, maskAttribution: m.maskAttribution, sequence: Number(m.seq), serverSequence: m.seq, deleted: m.deleted, kind: capabilityNoticeCode ? 'notice' : planCard ? 'plan' : 'message', ...(capabilityNoticeCode ? { capabilityNoticeCode } : {}), authorKind: legacy?.authorKind === 'system' ? 'system' : m.author.kind === 'human' ? 'user' : 'bot',
+       isSelf: m.authorId === selfId, threadRootId: m.threadRootId, replyCount: m.replyCount ?? 0, reactions: m.reactions ?? [], ...(quote ? { quote } : {}), ...(task ? { task } : {}), ...(process ? { process } : {}),
+       authorBotId: localBot(m.authorId)?.id ?? m.authorId, authorName: legacy?.authorKind === 'system' && typeof legacy.authorName === 'string' ? legacy.authorName : member ? memberName(member, ownerMembers) : m.author.name, content: displayText(m),
+       mentions: { all: m.mentionAudience === 'humans' || m.mentionAudience === 'everyone', ...(m.mentionAudience === 'bots' || m.mentionAudience === 'everyone' ? { allBots: true } : {}), botIds: (m.mentions ?? []).map(actorId => localBot(actorId)?.id ?? actorId) }, noticeCode: null, planId: typeof planCard?.data?.planId === 'string' ? planCard.data.planId : null, files: [], attachments: [], createdAt: Date.parse(m.createdAt) };
+@@ -2098,6 +2101,43 @@ function createChatServer(local: BotGroupChatService, deps: BotGroupChatServiceD
+       executorId, epoch: run.execution.epoch, action, ...extra,
+     }, run.execution.bot_id);
+   }
++  function postCapabilityNotice(run: Running, code: BotGroupCapabilityNoticeCode, threadRootId?: string): Promise<void> {
++    if (!current() || running.get(run.execution.id) !== run || run.execution.mask_owner_id) return Promise.resolve();
++    const notices = run.capabilityNotices ??= new Map();
++    const existing = notices.get(code);
++    if (existing) return existing;
++    const name = actors.find(actor => actor.id === run.execution.bot_id)?.name ?? '';
++    // Freeze the server operation ID and payload for bounded retries, even after this turn ends.
++    const payload = {
++      operationId: `capability:${run.execution.id}:${run.execution.epoch}:${code}`,
++      content: [buildBotGroupCapabilityNotice(code, t(`bots.groupChat.notice.capability.${code}`).replaceAll('{{name}}', () => name))],
++      mentions: [], ...(threadRootId ? { threadRootId } : {}),
++    };
++    const pending = (async () => {
++      for (let attempt = 0; attempt < 3 && current(); attempt++) {
++        try {
++          await api(`/conversations/${run.execution.conversation_id}/messages`, 'POST', payload, run.execution.bot_id);
++          if (current()) changed(run.execution.conversation_id);
++          return;
++        } catch (error) {
++          if (attempt === 2 || error instanceof ChatResponseError && !retryableResponse(error)) {
++            // Keep the completed attempt budget: another denial in this turn
++            // must not restart delivery after all retries have failed.
++            deps.log?.warn('Group capability notice could not be delivered', { noticeCode: code, ...chatErrorDiagnostic(error) });
++            return;
++          }
++          await new Promise<void>(resolve => {
++            const delay = Math.max(1000 * (attempt + 1),
++              error instanceof ChatResponseError ? (error.retryAt ?? 0) - Date.now() : 0);
++            const timer = setTimeout(() => { capabilityNoticeRetries.delete(timer); resolve(); }, delay);
++            capabilityNoticeRetries.set(timer, resolve);
++          });
++        }
++      }
++    })();
++    notices.set(code, pending);
++    return pending;
++  }
+   async function validateExecutionAuthority(run: Running): Promise<void> {
+     const execution = run.execution;
+     const assertCurrent = () => {
+@@ -2470,6 +2510,7 @@ function createChatServer(local: BotGroupChatService, deps: BotGroupChatServiceD
+           sourceGroup: { groupId: s.room.id, name: s.room.name },
+           isCurrent: () => current() && running.get(execution.id) === run && !run.settlement,
+           validate: () => validateExecutionAuthority(run),
++          onDenied: error => postCapabilityNotice(run, error.temporary ? 'GROUP_AUTHORIZATION_UNAVAILABLE' : 'GROUP_AUTHORIZATION_REQUIRED', threadRootId),
+         });
+         if (run.plan && run.workspace?.ownerSessionId) {
+           const settings = workspaces().read(s.room.id)!;
+@@ -2581,6 +2622,7 @@ function createChatServer(local: BotGroupChatService, deps: BotGroupChatServiceD
+       const lane = await laneSetup;
+       const { history, source, threadRootId, thread, focusMessages, quotedMessage, attachments, missingAttachments, mediaDelivery } = await contextRead;
+       if (!current()) throw new Error('OWNER_CHANGED');
++      if (missingAttachments.length) void postCapabilityNotice(run, 'ATTACHMENTS_UNAVAILABLE', threadRootId ?? undefined);
+       const runtime = laneContext(lane.sessionId);
+       const contextScope = JSON.stringify([s.room.id, threadRootId, run.plan?.id, execution.access_mode, execution.access_revision, execution.mask_owner_id]);
+       const savedProgress = !digest && (!run.plan || run.plan.kind === 'talk') ? textProgress.get(lane.sessionId) : undefined;
+@@ -3870,7 +3912,10 @@ function createChatServer(local: BotGroupChatService, deps: BotGroupChatServiceD
+       postedThreads.clear();
+       for (const roomId of attentionGroups) clearGroupAttention(roomId);
+       unsubscribeProfiles();
+-      disposed = true; threads.dispose(); clearInterval(timer); clearInterval(heartbeat); clearTimeout(reconnect); workPolling.dispose(); socket?.close();
++      disposed = true;
++      for (const [timer, finish] of capabilityNoticeRetries) { clearTimeout(timer); finish(); }
++      capabilityNoticeRetries.clear();
++      threads.dispose(); clearInterval(timer); clearInterval(heartbeat); clearTimeout(reconnect); workPolling.dispose(); socket?.close();
+       textProgress.clear();
+       companion?.dispose(); companion = undefined; deps.companionCloud?.homes.reset();
+       for (const refresh of attachmentRefreshes.values()) clearTimeout(refresh);
+
+diff --git a/apps/desktop/src/renderer/features/bots/BotGroupCapabilityNotice.tsx b/apps/desktop/src/renderer/features/bots/BotGroupCapabilityNotice.tsx
+@@ -0,0 +1,11 @@
++import { useTranslation } from 'react-i18next';
++import { isBotGroupCapabilityNoticeCode } from '../../../shared/botGroupChat';
++
++/** A visible reason for one unavailable operation, independent of turn completion. */
++export function BotGroupCapabilityNotice({ name, code }: { name: string; code: unknown }) {
++  const { t } = useTranslation();
++  if (!isBotGroupCapabilityNoticeCode(code)) return null;
++  return <p className="mx-auto max-w-[560px] whitespace-pre-line text-center text-13 leading-5 text-[var(--text-primary)]">
++    {t(`bots.groupChat.notice.capability.${code}`, { name })}
++  </p>;
++}
+
+diff --git a/apps/desktop/src/renderer/features/bots/BotGroupTimelineItem.tsx b/apps/desktop/src/renderer/features/bots/BotGroupTimelineItem.tsx
+@@ -21,6 +21,7 @@ import { botGroupBodyParts } from '@cindy/maker-shared/botGroupPresentation';
+ import { memo, useEffect, useState, useLayoutEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+ import { useTranslation } from 'react-i18next';
+ import { CircleAlert, CornerDownRight, RefreshCcw } from 'lucide-react';
++import { BotGroupCapabilityNotice } from './BotGroupCapabilityNotice';
+ import { BotGroupThreadPreview, BotGroupThreadShareQuote, botGroupThreadShareLabel } from './BotGroupThreadViews';
+ import { toast } from '@/lib/toast';
+ import { editBotGroupSend, retryBotGroupSend, type BotGroupOutboxEntry } from './botGroupOutbox';
+@@ -41,7 +42,7 @@ import type {
+   BotGroupQuoteDisplay,
+   BotGroupQuoteView,
+ } from '../../../shared/botGroupChat';
+-import { isBotGroupRuntimeFailureCode } from '../../../shared/botGroupChat';
++import { isBotGroupCapabilityNoticeCode, isBotGroupRuntimeFailureCode } from '../../../shared/botGroupChat';
+ import { GroupMaskMessageAvatar } from './GroupMaskControls';
+ import { useGroupMask, maskIdentity } from './groupMaskPresentation';
+ import { BotAvatar } from './BotAvatar';
+@@ -408,6 +409,9 @@ function BotGroupTimelineItemImpl(props: BotGroupTimelineItemProps) {
+   }
+   if (message.kind === 'notice' || message.authorKind === 'system') {
+     const name = message.authorName.trim() || authorName;
++    if (isBotGroupCapabilityNoticeCode(message.capabilityNoticeCode)) return <Row {...rowProps} block="system">
++      <BotGroupCapabilityNotice name={name} code={message.capabilityNoticeCode} />
++    </Row>;
+     if (isBotGroupRuntimeFailureCode(message.runtimeFailureCode)) {
+       return (
+         <Row {...rowProps} block="system">
+
+diff --git a/apps/desktop/src/renderer/features/bots/__tests__/BotGroupRuntimeFailureNotice.test.tsx b/apps/desktop/src/renderer/features/bots/__tests__/BotGroupRuntimeFailureNotice.test.tsx
+@@ -1,12 +1,14 @@
+ // @vitest-environment jsdom
+ import { cleanup, render, screen } from '@testing-library/react';
+ import { afterEach, describe, expect, it, vi } from 'vitest';
++import { BotGroupCapabilityNotice } from '../BotGroupCapabilityNotice';
+ import { BotGroupRuntimeFailureNotice } from '../BotGroupRuntimeFailureNotice';
+ import zhCN from '../../../i18n/locales/zh-CN/common.json';
+ 
+ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string, { name }: { name: string }) => {
+   const code = key.split('.').at(-1)!;
+-  return zhCN.bots.groupChat.notice.runtimeFailure[code as keyof typeof zhCN.bots.groupChat.notice.runtimeFailure].replace('{{name}}', name);
++  const values = key.includes('.capability.') ? zhCN.bots.groupChat.notice.capability : zhCN.bots.groupChat.notice.runtimeFailure;
++  return (values[code as keyof typeof values] as string).replace('{{name}}', name);
+ } }) }));
+ afterEach(cleanup);
+ 
+@@ -37,3 +39,21 @@ describe('group failure notice', () => {
+     expect(screen.getByText(/模型服务暂时繁忙/).textContent).toContain('其他可用模型');
+   });
+ });
++
++// Unit: operation failures must be visible without claiming the whole reply failed.
++describe('group operation capability notice', () => {
++  it.each([
++    ['GROUP_AUTHORIZATION_REQUIRED', '群内授权已失效'],
++    ['GROUP_AUTHORIZATION_UNAVAILABLE', '暂时无法核验'],
++    ['ATTACHMENTS_UNAVAILABLE', '部分附件未交给'],
++  ])('shows the actual reason %s with a next action', (code, reason) => {
++    const { container } = render(<BotGroupCapabilityNotice name="Writer" code={code} />);
++    expect(container.textContent).toContain('Writer');
++    expect(container.textContent).toContain(reason);
++    expect(container.textContent).not.toContain('回复失败');
++  });
++  it('does not expose an unknown diagnostic', () => {
++    const { container } = render(<BotGroupCapabilityNotice name="Writer" code="private diagnostic" />);
++    expect(container.textContent).toBe('');
++  });
++});
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/de/common.json b/apps/desktop/src/renderer/i18n/locales/de/common.json
+@@ -10594,6 +10594,11 @@
+           "NETWORK_ERROR": "{{name}} konnte nicht antworten: Die Netzwerkverbindung ist fehlgeschlagen.\nPrüfe dein Netzwerk oder deinen Proxy und sende deine Nachricht erneut.",
+           "RUNTIME_TIMEOUT": "{{name}} hat nicht innerhalb des Zeitlimits geantwortet.\nSende deine Nachricht erneut oder wähle ein anderes verfügbares Modell.",
+           "RUNTIME_ERROR": "{{name}} konnte diesmal nicht antworten.\nSende deine Nachricht erneut. Falls es weiterhin nicht klappt, prüfe die Protokolle und melde das Problem."
++        },
++        "capability": {
++          "GROUP_AUTHORIZATION_REQUIRED": "{{name}} konnte dieses Werkzeug nicht ausführen: Die Gruppenberechtigung ist abgelaufen oder erlaubt diese Aktion nicht. Der Besitzer des Teammitglieds kann die Anfrage in dieser Gruppe erneut stellen.",
++          "GROUP_AUTHORIZATION_UNAVAILABLE": "Die Gruppenberechtigung für {{name}} konnte nicht überprüft werden. Dieses Werkzeug wurde daher nicht ausgeführt. Versuche es erneut, sobald die Verbindung wiederhergestellt ist.",
++          "ATTACHMENTS_UNAVAILABLE": "Einige Anhänge wurden {{name}} wegen eines Downloadfehlers oder der maximalen Anzahl an Anhängen nicht übermittelt. Sende die für diese Anfrage benötigten Anhänge erneut."
+         }
+       },
+       "settings": {
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/en/common.json b/apps/desktop/src/renderer/i18n/locales/en/common.json
+@@ -10594,6 +10594,11 @@
+           "NETWORK_ERROR": "{{name}} could not reply: the network connection failed.\nCheck your network or proxy, then send your message again.",
+           "RUNTIME_TIMEOUT": "{{name}} did not reply before the timeout.\nSend your message again, or choose another available model.",
+           "RUNTIME_ERROR": "{{name}} could not reply this time.\nSend your message again. If it still fails, check the logs and report the issue."
++        },
++        "capability": {
++          "GROUP_AUTHORIZATION_REQUIRED": "{{name}} could not run this tool: group authorization has expired or does not allow this action. The teammate’s owner can make the request again in this group.",
++          "GROUP_AUTHORIZATION_UNAVAILABLE": "Group authorization for {{name}} could not be verified, so this tool did not run. Try again after the connection recovers.",
++          "ATTACHMENTS_UNAVAILABLE": "Some attachments were not delivered to {{name}} because of a download failure or attachment limit. Resend the attachments needed for this request."
+         }
+       },
+       "settings": {
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/es/common.json b/apps/desktop/src/renderer/i18n/locales/es/common.json
+@@ -10678,6 +10678,11 @@
+           "NETWORK_ERROR": "{{name}} no pudo responder: falló la conexión de red.\nRevisa tu red o proxy y vuelve a enviar tu mensaje.",
+           "RUNTIME_TIMEOUT": "{{name}} no respondió antes de que se agotara el tiempo de espera.\nVuelve a enviar tu mensaje o elige otro modelo disponible.",
+           "RUNTIME_ERROR": "{{name}} no pudo responder esta vez.\nVuelve a enviar tu mensaje. Si sigue fallando, revisa los registros e informa del problema."
++        },
++        "capability": {
++          "GROUP_AUTHORIZATION_REQUIRED": "{{name}} no pudo ejecutar la herramienta: la autorización del grupo ha caducado o no permite esta acción. La persona propietaria del compañero puede volver a solicitarla en este grupo.",
++          "GROUP_AUTHORIZATION_UNAVAILABLE": "No se pudo verificar la autorización de grupo de {{name}}, por lo que la herramienta no se ejecutó. Vuelve a intentarlo cuando se restablezca la conexión.",
++          "ATTACHMENTS_UNAVAILABLE": "Algunos adjuntos no llegaron a {{name}} por un fallo de descarga o por el límite de adjuntos. Vuelve a enviar los archivos necesarios para esta solicitud."
+         }
+       },
+       "settings": {
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/fr/common.json b/apps/desktop/src/renderer/i18n/locales/fr/common.json
+@@ -10678,6 +10678,11 @@
+           "NETWORK_ERROR": "{{name}} n'a pas pu répondre : échec de la connexion réseau.\nVérifiez votre réseau ou votre proxy, puis renvoyez votre message.",
+           "RUNTIME_TIMEOUT": "{{name}} n'a pas répondu avant l'expiration du délai.\nRenvoyez votre message, ou choisissez un autre modèle disponible.",
+           "RUNTIME_ERROR": "{{name}} n'a pas pu répondre cette fois.\nRenvoyez votre message. Si l'échec persiste, consultez les journaux et signalez le problème."
++        },
++        "capability": {
++          "GROUP_AUTHORIZATION_REQUIRED": "{{name}} n’a pas pu exécuter cet outil : l’autorisation du groupe a expiré ou ne permet pas cette action. Le propriétaire du coéquipier peut renouveler la demande dans ce groupe.",
++          "GROUP_AUTHORIZATION_UNAVAILABLE": "L’autorisation de groupe de {{name}} n’a pas pu être vérifiée ; cet outil n’a donc pas été exécuté. Réessayez une fois la connexion rétablie.",
++          "ATTACHMENTS_UNAVAILABLE": "Certaines pièces jointes n’ont pas été transmises à {{name}} en raison d’un échec de téléchargement ou de la limite de pièces jointes. Renvoyez celles nécessaires à cette demande."
+         }
+       },
+       "settings": {
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/ja/common.json b/apps/desktop/src/renderer/i18n/locales/ja/common.json
+@@ -10549,6 +10549,11 @@
+           "NETWORK_ERROR": "{{name}}は返信できませんでした。ネットワーク接続に失敗しました。\nネットワークやプロキシを確認し、メッセージを再送してください。",
+           "RUNTIME_TIMEOUT": "{{name}}の返信がタイムアウトしました。\nメッセージを再送するか、別の利用可能なモデルを選んでください。",
+           "RUNTIME_ERROR": "{{name}}は今回は返信できませんでした。\nメッセージを再送してください。再度失敗する場合は、ログを確認して問題を報告してください。"
++        },
++        "capability": {
++          "GROUP_AUTHORIZATION_REQUIRED": "{{name}} のツールは実行されませんでした。グループの許可が失効しているか、この操作が許可されていません。仲間の所有者がこのグループで改めて依頼してください。",
++          "GROUP_AUTHORIZATION_UNAVAILABLE": "{{name}} のグループでの許可を確認できず、ツールは実行されませんでした。接続が回復してから再試行してください。",
++          "ATTACHMENTS_UNAVAILABLE": "ダウンロードの失敗または添付数の上限により、一部の添付ファイルを {{name}} に渡せませんでした。今回必要なファイルを再送してください。"
+         }
+       },
+       "settings": {
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/ko/common.json b/apps/desktop/src/renderer/i18n/locales/ko/common.json
+@@ -10549,6 +10549,11 @@
+           "NETWORK_ERROR": "{{name}}이(가) 답변하지 못했습니다. 네트워크 연결에 실패했습니다.\n네트워크나 프록시를 확인한 뒤 메시지를 다시 보내세요.",
+           "RUNTIME_TIMEOUT": "{{name}}의 답변 시간이 초과되었습니다.\n메시지를 다시 보내거나 다른 사용 가능한 모델을 선택하세요.",
+           "RUNTIME_ERROR": "{{name}}이(가) 이번에는 답변하지 못했습니다.\n메시지를 다시 보내세요. 계속 실패하면 로그를 확인하고 문제를 신고하세요."
++        },
++        "capability": {
++          "GROUP_AUTHORIZATION_REQUIRED": "{{name}}의 도구가 실행되지 않았습니다. 그룹 권한이 만료되었거나 이 작업을 허용하지 않습니다. 동료 소유자가 이 그룹에서 다시 요청해 주세요.",
++          "GROUP_AUTHORIZATION_UNAVAILABLE": "{{name}}의 그룹 권한을 확인할 수 없어 도구가 실행되지 않았습니다. 연결이 복구되면 다시 시도해 주세요.",
++          "ATTACHMENTS_UNAVAILABLE": "다운로드 실패 또는 첨부 개수 제한으로 일부 첨부 파일이 {{name}}에게 전달되지 않았습니다. 이번 요청에 필요한 파일을 다시 보내 주세요."
+         }
+       },
+       "settings": {
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/pt-BR/common.json b/apps/desktop/src/renderer/i18n/locales/pt-BR/common.json
+@@ -10678,6 +10678,11 @@
+           "NETWORK_ERROR": "{{name}} não conseguiu responder: a conexão de rede falhou.\nVerifique sua rede ou proxy e envie sua mensagem novamente.",
+           "RUNTIME_TIMEOUT": "{{name}} não respondeu dentro do tempo limite.\nEnvie sua mensagem novamente ou escolha outro modelo disponível.",
+           "RUNTIME_ERROR": "{{name}} não conseguiu responder desta vez.\nEnvie sua mensagem novamente. Se a falha persistir, verifique os logs e relate o problema."
++        },
++        "capability": {
++          "GROUP_AUTHORIZATION_REQUIRED": "{{name}} não pôde executar a ferramenta: a autorização do grupo expirou ou não permite esta ação. O proprietário do colega pode repetir o pedido neste grupo.",
++          "GROUP_AUTHORIZATION_UNAVAILABLE": "Não foi possível verificar a autorização de grupo de {{name}}, por isso a ferramenta não foi executada. Tente novamente quando a conexão for restabelecida.",
++          "ATTACHMENTS_UNAVAILABLE": "Alguns anexos não foram entregues a {{name}} devido a uma falha no download ou ao limite de anexos. Reenvie os anexos necessários para este pedido."
+         }
+       },
+       "settings": {
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/pt-PT/common.json b/apps/desktop/src/renderer/i18n/locales/pt-PT/common.json
+@@ -10678,6 +10678,11 @@
+           "NETWORK_ERROR": "{{name}} não conseguiu responder: a ligação de rede falhou.\nVerifique a rede ou o proxy e volte a enviar a mensagem.",
+           "RUNTIME_TIMEOUT": "{{name}} não respondeu dentro do tempo limite.\nVolte a enviar a mensagem ou escolha outro modelo disponível.",
+           "RUNTIME_ERROR": "{{name}} não conseguiu responder desta vez.\nVolte a enviar a mensagem. Se continuar a falhar, consulte os registos e comunique o problema."
++        },
++        "capability": {
++          "GROUP_AUTHORIZATION_REQUIRED": "{{name}} não pôde executar a ferramenta: a autorização do grupo expirou ou não permite esta ação. O proprietário do colega pode repetir o pedido neste grupo.",
++          "GROUP_AUTHORIZATION_UNAVAILABLE": "Não foi possível verificar a autorização de grupo de {{name}}, pelo que a ferramenta não foi executada. Tente novamente quando a ligação for restabelecida.",
++          "ATTACHMENTS_UNAVAILABLE": "Alguns anexos não foram entregues a {{name}} devido a uma falha na transferência ou ao limite de anexos. Reenvie os anexos necessários para este pedido."
+         }
+       },
+       "settings": {
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/zh-CN/common.json b/apps/desktop/src/renderer/i18n/locales/zh-CN/common.json
+@@ -10549,6 +10549,11 @@
+           "NETWORK_ERROR": "{{name}}无法回复：网络连接失败。\n请检查网络或 Proxy 后重新发送。",
+           "RUNTIME_TIMEOUT": "{{name}}本次回复超时。\n请重新发送消息，或选择其他可用模型。",
+           "RUNTIME_ERROR": "{{name}}这次没能回复。\n请重新发送消息；如果仍失败，请查看日志并反馈问题。"
++        },
++        "capability": {
++          "GROUP_AUTHORIZATION_REQUIRED": "{{name}} 的工具调用未执行：群内授权已失效或不允许此操作。请由伙伴主人在当前群重新发起。",
++          "GROUP_AUTHORIZATION_UNAVAILABLE": "暂时无法核验 {{name}} 的群聊授权，这次工具调用未执行。请在连接恢复后重试。",
++          "ATTACHMENTS_UNAVAILABLE": "部分附件未交给 {{name}}（下载失败或数量限制）。请重新发送本次需要的附件。"
+         }
+       },
+       "settings": {
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/zh-Hans-x-lzh/common.json b/apps/desktop/src/renderer/i18n/locales/zh-Hans-x-lzh/common.json
+@@ -10549,6 +10549,11 @@
+           "NETWORK_ERROR": "{{name}}不能回复：网络连接未成。\n请察网络或 Proxy，再遣之。",
+           "RUNTIME_TIMEOUT": "{{name}}此番回复逾时。\n请再遣讯，或择他可用模型。",
+           "RUNTIME_ERROR": "{{name}}此番未能回复。\n请再遣讯；若仍未成，请察记录并回报其事。"
++        },
++        "capability": {
++          "GROUP_AUTHORIZATION_REQUIRED": "{{name}} 的工具调用未执行：群内授权已失效或不允许此操作。请由伙伴主人在当前群重新发起。",
++          "GROUP_AUTHORIZATION_UNAVAILABLE": "暂时无法核验 {{name}} 的群聊授权，这次工具调用未执行。请在连接恢复后重试。",
++          "ATTACHMENTS_UNAVAILABLE": "部分附件未交给 {{name}}（下载失败或数量限制）。请重新发送本次需要的附件。"
+         }
+       },
+       "settings": {
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/zh-Hant-x-lzh/common.json b/apps/desktop/src/renderer/i18n/locales/zh-Hant-x-lzh/common.json
+@@ -10549,6 +10549,11 @@
+           "NETWORK_ERROR": "{{name}}不能回覆：網路連線未成。\n請察網路或 Proxy，再遣之。",
+           "RUNTIME_TIMEOUT": "{{name}}此番回覆逾時。\n請再遣訊，或擇他可用模型。",
+           "RUNTIME_ERROR": "{{name}}此番未能回覆。\n請再遣訊；若仍未成，請察記錄並回報其事。"
++        },
++        "capability": {
++          "GROUP_AUTHORIZATION_REQUIRED": "{{name}} 的工具呼叫未執行：群內授權已失效或不允許此操作。請由夥伴主人在目前群組重新發起。",
++          "GROUP_AUTHORIZATION_UNAVAILABLE": "暫時無法核驗 {{name}} 的群聊授權，這次工具呼叫未執行。請在連線恢復後重試。",
++          "ATTACHMENTS_UNAVAILABLE": "部分附件未交給 {{name}}（下載失敗或數量限制）。請重新傳送這次需要的附件。"
+         }
+       },
+       "settings": {
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/zh-TW/common.json b/apps/desktop/src/renderer/i18n/locales/zh-TW/common.json
+@@ -10549,6 +10549,11 @@
+           "NETWORK_ERROR": "{{name}}無法回覆：網路連線失敗。\n請檢查網路或 Proxy 後重新傳送。",
+           "RUNTIME_TIMEOUT": "{{name}}本次回覆逾時。\n請重新傳送訊息，或選擇其他可用模型。",
+           "RUNTIME_ERROR": "{{name}}這次未能回覆。\n請重新傳送訊息；若仍失敗，請查看記錄並回報問題。"
++        },
++        "capability": {
++          "GROUP_AUTHORIZATION_REQUIRED": "{{name}} 的工具呼叫未執行：群內授權已失效或不允許此操作。請由夥伴主人在目前群組重新發起。",
++          "GROUP_AUTHORIZATION_UNAVAILABLE": "暫時無法核驗 {{name}} 的群聊授權，這次工具呼叫未執行。請在連線恢復後重試。",
++          "ATTACHMENTS_UNAVAILABLE": "部分附件未交給 {{name}}（下載失敗或數量限制）。請重新傳送這次需要的附件。"
+         }
+       },
+       "settings": {
+
+diff --git a/apps/mobile/src/__tests__/BotGroupChatScreen.test.tsx b/apps/mobile/src/__tests__/BotGroupChatScreen.test.tsx
+@@ -2,7 +2,8 @@
+ import { act, createElement as el, useEffect, useImperativeHandle, useRef, useState } from 'react';
+ import { createRoot, type Root } from 'react-dom/client';
+ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+-import { BOT_GROUP_RUNTIME_FAILURE_CODES, type BotGroupRemoteChatData } from '@cindy/maker-shared/botGroupChat';
++import { buildBotGroupCapabilityNotice, BOT_GROUP_RUNTIME_FAILURE_CODES, type BotGroupRemoteChatData } from '@cindy/maker-shared/botGroupChat';
++import { chatGroupView, chatRoomRow, createChatServerClient, type ChatMessage, type ChatPage } from '@/chat/chatServerClient';
+ import { shareSelectionStore } from '@/session/shareSelectionStore';
+ 
+ const h = vi.hoisted(() => ({
+@@ -488,6 +489,47 @@ describe('group timeline', () => {
+     expect(h.headerFade.at(-1)).toBe(0);
+   });
+ 
++  // #8443: exercise the production projection, measured viewport and read client.
++  // A late capability notice must clear the unread count in both main and followed threads.
++  it.each([false, true])('acknowledges a displayed capability notice only at the measured tail (thread=%s)', async thread => {
++    vi.useFakeTimers();
++    const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
++    const roomId = id(1), selfId = id(2), botId = id(3), rootId = id(4), noticeId = id(5);
++    const rootMessage: ChatMessage = { id: rootId, seq: '1', authorId: botId, author: { kind: 'bot', name: 'Bot' },
++      origin: 'bot', createdAt: '2026-11-03T00:00:00Z', deleted: false, threadRootId: null,
++      content: [{ type: 'text', text: 'Earlier reply' }] };
++    const notice: ChatMessage = { ...rootMessage, id: noticeId, seq: '2', threadRootId: thread ? rootId : null,
++      content: [buildBotGroupCapabilityNotice('ATTACHMENTS_UNAVAILABLE', 'Attachment unavailable')] };
++    const page: ChatPage = { threadRootId: thread ? rootId : undefined, before: null, messages: [rootMessage, notice],
++      snapshot: { room: { id: roomId, name: 'Group', kind: 'group', state: 'joined', archived: false,
++        revision: 1, created_at: '2026-11-03', updated_at: '2026-11-03', response_mode: 'all', speaking_mode: 'auto' },
++        members: [], cursor: '2', messages: [rootMessage, notice], reads: [
++          { thread_key: 'main', read_seq: '1' }, ...(thread ? [{ thread_key: rootId, read_seq: '1', following: true }] : []),
++        ] } };
++    const unread = () => chatRoomRow(page.snapshot.room, page.snapshot, selfId).chatUnread?.count;
++    expect(unread()).toBe(1);
++    const request = vi.fn().mockResolvedValue({ readSeq: '2' });
++    const client = createChatServerClient(request);
++    h.chat = { ...h.chat, server: true, markRead: (ids: string[]) => client.markRead(roomId, page, ids),
++      state: { kind: 'ready', group: chatGroupView(page, selfId) } };
++    await act(async () => root.render(el(BotGroupChatScreen, { deviceId: '', deviceName: '', groupId: roomId,
++      threadRootId: page.threadRootId })));
++    expect(node.textContent).toContain('groupChat.notice.capability.ATTACHMENTS_UNAVAILABLE');
++    await act(async () => {
++      await vi.advanceTimersByTimeAsync(32);
++      h.scroll.onLayout({ nativeEvent: { layout: { height: 500 } } });
++      h.scroll.onContentSizeChange(400, 2000);
++    });
++    expect(request).not.toHaveBeenCalled();
++    expect(unread()).toBe(1);
++    await act(async () => h.scroll.onScroll({ nativeEvent: { contentOffset: { y: 1500 },
++      contentSize: { height: 2000 }, layoutMeasurement: { height: 500 } } }));
++    expect(request).toHaveBeenCalledWith(`/conversations/${roomId}/read`, 'POST', {
++      operationId: `read-${thread ? rootId : 'main'}:2`, readSeq: '2', ...(thread ? { threadRootId: rootId } : {}),
++    });
++    expect(unread()).toBe(0);
++  });
++
+   it('returns from history without new messages and resumes following the tail', async () => {
+     await render();
+     await act(async () => h.scroll.onScroll({ nativeEvent: {
+
+diff --git a/apps/mobile/src/__tests__/botGroupRemote.test.ts b/apps/mobile/src/__tests__/botGroupRemote.test.ts
+@@ -87,6 +87,23 @@ describe('parseBotGroupChatData', () => {
+     expect(parsed.messages[0].runtimeFailureCode).toBe(runtimeFailureCode === 'AUTH_REQUIRED' ? runtimeFailureCode : undefined);
+     expect(JSON.stringify(parsed.messages)).not.toContain('private diagnostic');
+   });
++  // Unit #8443 review: the real device-link parser must preserve the localized
++  // notice discriminator, while old/unknown input keeps its readable fallback.
++  it.each([
++    ['GROUP_AUTHORIZATION_REQUIRED', 'bot', false, true],
++    ['GROUP_AUTHORIZATION_UNAVAILABLE', 'bot', false, true],
++    ['ATTACHMENTS_UNAVAILABLE', 'bot', false, true],
++    ['private diagnostic', 'bot', false, false],
++    [undefined, 'bot', false, false],
++    ['ATTACHMENTS_UNAVAILABLE', 'user', false, false],
++    ['ATTACHMENTS_UNAVAILABLE', 'bot', true, false],
++  ])('preserves only a live companion capability notice (%s, %s, deleted=%s)', (code, authorKind, deleted, keep) => {
++    const parsed = parseBotGroupChatData(chatData({ messages: [{ id: 'capability', sequence: 1,
++      kind: 'notice', authorKind, authorName: 'Bot', content: 'Readable host-language fallback',
++      createdAt: 1, deleted, capabilityNoticeCode: code }] }))!;
++    expect(parsed.messages[0].capabilityNoticeCode).toBe(keep ? code : undefined);
++    expect(parsed.messages[0].content).toBe('Readable host-language fallback');
++  });
+   it('preserves server member identities and removal capability', () => {
+     const parsed = parseBotGroupChatData(chatData({ serverBacked: true, supportsMemberRemoval: true,
+       members: [{ botId: 'human', actorId: 'actor', actorKind: 'human', isOwned: false, name: 'Person', status: 'active' }] }));
+
+diff --git a/apps/mobile/src/__tests__/chatServerClient.test.ts b/apps/mobile/src/__tests__/chatServerClient.test.ts
+@@ -5,7 +5,7 @@ import { botGroupNewMessageCount } from '@cindy/maker-shared/botGroupPresentatio
+ import { createChatHistory, type ChatHistoryState } from '@cindy/maker-shared/chat-history';
+ import { chatGroupView, chatRoomRow, chatReadAt, createChatServerClient, type ChatMessage, type ChatPage, type ChatRoom, type ChatSnapshot } from '@/chat/chatServerClient';
+ import type { ChatHistory } from '@cindy/maker-shared/chat-history';
+-import { botGroupQuoteFromMessage, resolveBotGroupQuote, buildBotGroupQuoteCard, buildBotGroupTaskCard, botGroupProcessCard } from '@cindy/maker-shared/botGroupChat';
++import { buildBotGroupCapabilityNotice, botGroupQuoteFromMessage, resolveBotGroupQuote, buildBotGroupQuoteCard, buildBotGroupTaskCard, botGroupProcessCard } from '@cindy/maker-shared/botGroupChat';
+ import { orderedBotGroups } from '@/session/botGroupRemote';
+ const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+ const room = (n = 1, state = 'joined'): ChatRoom => ({ id: id(n), name: 'Discussion', kind: 'group', state, archived: false,
+@@ -974,3 +974,14 @@ describe('personal mask transport', () => {
+     expect(chatGroupView(page, id(10)).messages[0]).toMatchObject({ authorKind: 'user', isSelf: true, maskAttribution: attribution });
+   });
+ });
++
++// Unit: direct mobile reads must match the Desktop projection; human-authored
++// copies remain ordinary messages and the original fallback stays readable.
++it.each(['bot', 'human'] as const)('projects a capability notice only from its companion author (%s)', kind => {
++  const item = { ...message(50), author: { kind, name: 'Writer' }, content: [buildBotGroupCapabilityNotice('ATTACHMENTS_UNAVAILABLE', 'Some attachments were not delivered')] };
++  const page = { snapshot: snapshot(), messages: [item], hasMore: false, executions: [], plans: [] } as unknown as ChatPage;
++  const view = chatGroupView(page, id(11));
++  expect(view.messages[0].kind).toBe(kind === 'bot' ? 'notice' : 'message');
++  expect(view.messages[0].capabilityNoticeCode).toBe(kind === 'bot' ? 'ATTACHMENTS_UNAVAILABLE' : undefined);
++  expect(view.messages[0].content).toBe('Some attachments were not delivered');
++});
+
+diff --git a/apps/mobile/src/chat/chatServerClient.ts b/apps/mobile/src/chat/chatServerClient.ts
+@@ -6,7 +6,7 @@ import { inferBotTemplatePresetId } from '@cindy/maker-shared/bot-template-prese
+ import { parseChatInvitationToken } from '@cindy/device-link';
+ import { createConversationListState } from '@cindy/maker-shared/chatConversationList';
+ import type { ChatHistory } from '@cindy/maker-shared/chat-history';
+-import { botGroupMessageSummaryText, botGroupQuoteFromMessage, buildBotGroupQuoteCard, readBotGroupExecutionFailure, readBotGroupQuote, readBotGroupQuoteCard, readBotGroupTaskCard, readImportedBotGroupRuntimeFailureCode, type BotGroupAttachment, type BotGroupMemberView, type BotGroupMessageView, type BotGroupRemoteChatData } from '@cindy/maker-shared/botGroupChat';
++import { readBotGroupCapabilityNotice, botGroupMessageSummaryText, botGroupQuoteFromMessage, buildBotGroupQuoteCard, readBotGroupExecutionFailure, readBotGroupQuote, readBotGroupQuoteCard, readBotGroupTaskCard, readImportedBotGroupRuntimeFailureCode, type BotGroupAttachment, type BotGroupMemberView, type BotGroupMessageView, type BotGroupRemoteChatData } from '@cindy/maker-shared/botGroupChat';
+ import { chatGroupMemberName as memberName, chatGroupOwnerName, botGroupActivityAt, latestBotGroupMessage, botGroupExecutionFailureBatches, projectBotGroupExecutionFailures } from '@cindy/maker-shared/botGroupPresentation';
+ import type { HostedRemoteCollectionItem } from '@/device-link/remoteResources';
+ // The app's `@/i18n` sets up this default instance; importing it here would pull React bindings into a plain client.
+@@ -334,6 +334,7 @@ export function chatGroupView(page: ChatPage, selfId: string, actors: readonly C
+   const sorted = [...new Map(page.messages.map(message => [message.id, message])).values()].filter(message => !message.deleted)
+     .sort((a, b) => BigInt(chatCursor(a.seq)) < BigInt(chatCursor(b.seq)) ? -1 : BigInt(a.seq) > BigInt(b.seq) ? 1 : 0);
+   const messages: BotGroupMessageView[] = sorted.map((message, index) => {
++    const capabilityNoticeCode = readBotGroupCapabilityNotice(message);
+     const runtimeFailureCode = readImportedBotGroupRuntimeFailureCode(message);
+     const legacy = runtimeFailureCode ? message.content.find(block => block.type === 'card' && block.namespace === 'cindy.local-history' && block.schemaRevision === 1)?.data : undefined;
+     if (runtimeFailureCode) return { id: message.id, sequence: index + 1, serverSequence: chatCursor(message.seq), kind: 'notice', authorKind: 'system',
+@@ -346,7 +347,7 @@ export function chatGroupView(page: ChatPage, selfId: string, actors: readonly C
+     const quote = message.origin === 'system' || planCard ? null : readBotGroupQuote(message.content);
+     const task = message.origin === 'system' || planCard ? null : taskCardOf(message);
+     const process = !message.deleted && message.origin !== 'system' && message.author.kind === 'bot' ? message.content.map(readBotGroupProcessCard).find(Boolean) : null;
+-    return { id: message.id, sequence: index + 1, serverSequence: chatCursor(message.seq), kind: planCard ? 'plan' : message.origin === 'system' ? 'notice' : 'message',
++    return { id: message.id, sequence: index + 1, serverSequence: chatCursor(message.seq), kind: capabilityNoticeCode ? 'notice' : planCard ? 'plan' : message.origin === 'system' ? 'notice' : 'message', ...(capabilityNoticeCode ? { capabilityNoticeCode } : {}),
+       ...(message.maskAttribution ? { maskAttribution: message.maskAttribution } : {}),
+       ...(task ? { task } : {}), ...(process ? { process } : {}), threadRootId: message.threadRootId, replyCount: message.replyCount, reactions: message.reactions,
+       authorKind: message.origin === 'system' ? 'system' : message.author.kind === 'human' ? 'user' : 'bot',
+
+diff --git a/apps/mobile/src/i18n/locales/de/groupChat.json b/apps/mobile/src/i18n/locales/de/groupChat.json
+@@ -161,7 +161,12 @@
+         "details": "Sende deine Nachricht erneut. Falls es weiterhin nicht klappt, prüfe die Logs und melde das Problem."
+       }
+     },
+-    "runtimeFailureSetupHint": "Ändere das Modell oder die Einstellungen auf dem Computer, auf dem dieses Teammitglied läuft."
++    "runtimeFailureSetupHint": "Ändere das Modell oder die Einstellungen auf dem Computer, auf dem dieses Teammitglied läuft.",
++    "capability": {
++      "GROUP_AUTHORIZATION_REQUIRED": "{{name}} konnte dieses Werkzeug nicht ausführen: Die Gruppenberechtigung ist abgelaufen oder erlaubt diese Aktion nicht. Der Besitzer des Teammitglieds kann die Anfrage in dieser Gruppe erneut stellen.",
++      "GROUP_AUTHORIZATION_UNAVAILABLE": "Die Gruppenberechtigung für {{name}} konnte nicht überprüft werden. Dieses Werkzeug wurde daher nicht ausgeführt. Versuche es erneut, sobald die Verbindung wiederhergestellt ist.",
++      "ATTACHMENTS_UNAVAILABLE": "Einige Anhänge wurden {{name}} wegen eines Downloadfehlers oder der maximalen Anzahl an Anhängen nicht übermittelt. Sende die für diese Anfrage benötigten Anhänge erneut."
++    }
+   },
+   "plan": {
+     "intro_one": "Dafür ist {{count}} Schritt nötig. Das übernimmt:",
+
+diff --git a/apps/mobile/src/i18n/locales/en/groupChat.json b/apps/mobile/src/i18n/locales/en/groupChat.json
+@@ -155,7 +155,12 @@
+         "details": "Send your message again. If it still fails, check the logs and report the issue."
+       }
+     },
+-    "runtimeFailureSetupHint": "To change the model or settings, use the computer where this teammate runs."
++    "runtimeFailureSetupHint": "To change the model or settings, use the computer where this teammate runs.",
++    "capability": {
++      "GROUP_AUTHORIZATION_REQUIRED": "{{name}} could not run this tool: group authorization has expired or does not allow this action. The teammate’s owner can make the request again in this group.",
++      "GROUP_AUTHORIZATION_UNAVAILABLE": "Group authorization for {{name}} could not be verified, so this tool did not run. Try again after the connection recovers.",
++      "ATTACHMENTS_UNAVAILABLE": "Some attachments were not delivered to {{name}} because of a download failure or attachment limit. Resend the attachments needed for this request."
++    }
+   },
+   "plan": {
+     "intro_one": "This takes {{count}} step. Here’s who does it:",
+
+diff --git a/apps/mobile/src/i18n/locales/es/groupChat.json b/apps/mobile/src/i18n/locales/es/groupChat.json
+@@ -164,7 +164,12 @@
+         "details": "Envía tu mensaje nuevamente. Si aún falla, verifique los registros e informe el problema."
+       }
+     },
+-    "runtimeFailureSetupHint": "Para cambiar el modelo o la configuración, use la computadora donde se ejecuta este compañero de equipo."
++    "runtimeFailureSetupHint": "Para cambiar el modelo o la configuración, use la computadora donde se ejecuta este compañero de equipo.",
++    "capability": {
++      "GROUP_AUTHORIZATION_REQUIRED": "{{name}} no pudo ejecutar la herramienta: la autorización del grupo ha caducado o no permite esta acción. La persona propietaria del compañero puede volver a solicitarla en este grupo.",
++      "GROUP_AUTHORIZATION_UNAVAILABLE": "No se pudo verificar la autorización de grupo de {{name}}, por lo que la herramienta no se ejecutó. Vuelve a intentarlo cuando se restablezca la conexión.",
++      "ATTACHMENTS_UNAVAILABLE": "Algunos adjuntos no llegaron a {{name}} por un fallo de descarga o por el límite de adjuntos. Vuelve a enviar los archivos necesarios para esta solicitud."
++    }
+   },
+   "plan": {
+     "intro_one": "Esto lleva el paso {{count}}. Aquí está quién lo hace:",
+
+diff --git a/apps/mobile/src/i18n/locales/fr/groupChat.json b/apps/mobile/src/i18n/locales/fr/groupChat.json
+@@ -164,7 +164,12 @@
+         "details": "Renvoyez votre message. Si l'échec persiste, consultez les journaux et signalez le problème."
+       }
+     },
+-    "runtimeFailureSetupHint": "Pour changer le modèle ou les paramètres, utilisez l'ordinateur sur lequel ce coéquipier s'exécute."
++    "runtimeFailureSetupHint": "Pour changer le modèle ou les paramètres, utilisez l'ordinateur sur lequel ce coéquipier s'exécute.",
++    "capability": {
++      "GROUP_AUTHORIZATION_REQUIRED": "{{name}} n’a pas pu exécuter cet outil : l’autorisation du groupe a expiré ou ne permet pas cette action. Le propriétaire du coéquipier peut renouveler la demande dans ce groupe.",
++      "GROUP_AUTHORIZATION_UNAVAILABLE": "L’autorisation de groupe de {{name}} n’a pas pu être vérifiée ; cet outil n’a donc pas été exécuté. Réessayez une fois la connexion rétablie.",
++      "ATTACHMENTS_UNAVAILABLE": "Certaines pièces jointes n’ont pas été transmises à {{name}} en raison d’un échec de téléchargement ou de la limite de pièces jointes. Renvoyez celles nécessaires à cette demande."
++    }
+   },
+   "plan": {
+     "intro_one": "Cela prend {{count}} étape. Voici qui s'en charge :",
+
+diff --git a/apps/mobile/src/i18n/locales/ja/groupChat.json b/apps/mobile/src/i18n/locales/ja/groupChat.json
+@@ -155,7 +155,12 @@
+         "details": "メッセージを再送してください。再度失敗する場合は、ログを確認して問題を報告してください。"
+       }
+     },
+-    "runtimeFailureSetupHint": "モデルや設定を変更する場合は、この仲間が動作するパソコンで行ってください。"
++    "runtimeFailureSetupHint": "モデルや設定を変更する場合は、この仲間が動作するパソコンで行ってください。",
++    "capability": {
++      "GROUP_AUTHORIZATION_REQUIRED": "{{name}} のツールは実行されませんでした。グループの許可が失効しているか、この操作が許可されていません。仲間の所有者がこのグループで改めて依頼してください。",
++      "GROUP_AUTHORIZATION_UNAVAILABLE": "{{name}} のグループでの許可を確認できず、ツールは実行されませんでした。接続が回復してから再試行してください。",
++      "ATTACHMENTS_UNAVAILABLE": "ダウンロードの失敗または添付数の上限により、一部の添付ファイルを {{name}} に渡せませんでした。今回必要なファイルを再送してください。"
++    }
+   },
+   "plan": {
+     "intro_one": "この件は {{count}} ステップに分けて、次のように分担します:",
+
+diff --git a/apps/mobile/src/i18n/locales/ko/groupChat.json b/apps/mobile/src/i18n/locales/ko/groupChat.json
+@@ -155,7 +155,12 @@
+         "details": "메시지를 다시 보내세요. 계속 실패하면 로그를 확인하고 문제를 신고하세요."
+       }
+     },
+-    "runtimeFailureSetupHint": "모델이나 설정을 변경하려면 이 동료가 실행되는 컴퓨터에서 변경하세요."
++    "runtimeFailureSetupHint": "모델이나 설정을 변경하려면 이 동료가 실행되는 컴퓨터에서 변경하세요.",
++    "capability": {
++      "GROUP_AUTHORIZATION_REQUIRED": "{{name}}의 도구가 실행되지 않았습니다. 그룹 권한이 만료되었거나 이 작업을 허용하지 않습니다. 동료 소유자가 이 그룹에서 다시 요청해 주세요.",
++      "GROUP_AUTHORIZATION_UNAVAILABLE": "{{name}}의 그룹 권한을 확인할 수 없어 도구가 실행되지 않았습니다. 연결이 복구되면 다시 시도해 주세요.",
++      "ATTACHMENTS_UNAVAILABLE": "다운로드 실패 또는 첨부 개수 제한으로 일부 첨부 파일이 {{name}}에게 전달되지 않았습니다. 이번 요청에 필요한 파일을 다시 보내 주세요."
++    }
+   },
+   "plan": {
+     "intro_one": "이 일은 {{count}}단계로 나눠서 이렇게 분담할게요:",
+
+diff --git a/apps/mobile/src/i18n/locales/pt-BR/groupChat.json b/apps/mobile/src/i18n/locales/pt-BR/groupChat.json
+@@ -164,7 +164,12 @@
+         "details": "Envie sua mensagem novamente. Se a falha persistir, verifique os logs e relate o problema."
+       }
+     },
+-    "runtimeFailureSetupHint": "Para mudar o modelo ou as configurações, use o computador em que este colega é executado."
++    "runtimeFailureSetupHint": "Para mudar o modelo ou as configurações, use o computador em que este colega é executado.",
++    "capability": {
++      "GROUP_AUTHORIZATION_REQUIRED": "{{name}} não pôde executar a ferramenta: a autorização do grupo expirou ou não permite esta ação. O proprietário do colega pode repetir o pedido neste grupo.",
++      "GROUP_AUTHORIZATION_UNAVAILABLE": "Não foi possível verificar a autorização de grupo de {{name}}, por isso a ferramenta não foi executada. Tente novamente quando a conexão for restabelecida.",
++      "ATTACHMENTS_UNAVAILABLE": "Alguns anexos não foram entregues a {{name}} devido a uma falha no download ou ao limite de anexos. Reenvie os anexos necessários para este pedido."
++    }
+   },
+   "plan": {
+     "intro_one": "Isso leva {{count}} etapa. Veja quem vai executá-la:",
+
+diff --git a/apps/mobile/src/i18n/locales/pt-PT/groupChat.json b/apps/mobile/src/i18n/locales/pt-PT/groupChat.json
+@@ -164,7 +164,12 @@
+         "details": "Volte a enviar a mensagem. Se continuar a falhar, verifique os registos e comunique o problema."
+       }
+     },
+-    "runtimeFailureSetupHint": "Para alterar o modelo ou as definições, utilize o computador onde este colega é executado."
++    "runtimeFailureSetupHint": "Para alterar o modelo ou as definições, utilize o computador onde este colega é executado.",
++    "capability": {
++      "GROUP_AUTHORIZATION_REQUIRED": "{{name}} não pôde executar a ferramenta: a autorização do grupo expirou ou não permite esta ação. O proprietário do colega pode repetir o pedido neste grupo.",
++      "GROUP_AUTHORIZATION_UNAVAILABLE": "Não foi possível verificar a autorização de grupo de {{name}}, pelo que a ferramenta não foi executada. Tente novamente quando a ligação for restabelecida.",
++      "ATTACHMENTS_UNAVAILABLE": "Alguns anexos não foram entregues a {{name}} devido a uma falha na transferência ou ao limite de anexos. Reenvie os anexos necessários para este pedido."
++    }
+   },
+   "plan": {
+     "intro_one": "É necessário {{count}} passo. Eis quem o executa:",
+
+diff --git a/apps/mobile/src/i18n/locales/zh-CN/groupChat.json b/apps/mobile/src/i18n/locales/zh-CN/groupChat.json
+@@ -155,7 +155,12 @@
+         "details": "请重新发送消息；如果仍失败，请查看日志并反馈问题。"
+       }
+     },
+-    "runtimeFailureSetupHint": "如需调整模型或设置，请在伙伴所属电脑上处理。"
++    "runtimeFailureSetupHint": "如需调整模型或设置，请在伙伴所属电脑上处理。",
++    "capability": {
++      "GROUP_AUTHORIZATION_REQUIRED": "{{name}} 的工具调用未执行：群内授权已失效或不允许此操作。请由伙伴主人在当前群重新发起。",
++      "GROUP_AUTHORIZATION_UNAVAILABLE": "暂时无法核验 {{name}} 的群聊授权，这次工具调用未执行。请在连接恢复后重试。",
++      "ATTACHMENTS_UNAVAILABLE": "部分附件未交给 {{name}}（下载失败或数量限制）。请重新发送本次需要的附件。"
++    }
+   },
+   "plan": {
+     "intro_one": "这件事分 {{count}} 步，我这样分工：",
+
+diff --git a/apps/mobile/src/i18n/locales/zh-Hans-x-lzh/groupChat.json b/apps/mobile/src/i18n/locales/zh-Hans-x-lzh/groupChat.json
+@@ -161,7 +161,12 @@
+         "details": "请再遣讯；若仍未成，请察记录并回报其事。"
+       }
+     },
+-    "runtimeFailureSetupHint": "如须调模型或设置，请于同僚所属之机上为之。"
++    "runtimeFailureSetupHint": "如须调模型或设置，请于同僚所属之机上为之。",
++    "capability": {
++      "GROUP_AUTHORIZATION_REQUIRED": "{{name}} 的工具调用未执行：群内授权已失效或不允许此操作。请由伙伴主人在当前群重新发起。",
++      "GROUP_AUTHORIZATION_UNAVAILABLE": "暂时无法核验 {{name}} 的群聊授权，这次工具调用未执行。请在连接恢复后重试。",
++      "ATTACHMENTS_UNAVAILABLE": "部分附件未交给 {{name}}（下载失败或数量限制）。请重新发送本次需要的附件。"
++    }
+   },
+   "plan": {
+     "intro_one": "此事分 {{count}} 步，吾如是分职：",
+
+diff --git a/apps/mobile/src/i18n/locales/zh-Hant-x-lzh/groupChat.json b/apps/mobile/src/i18n/locales/zh-Hant-x-lzh/groupChat.json
+@@ -161,7 +161,12 @@
+         "details": "請再遣訊；若仍未成，請察記錄並回報其事。"
+       }
+     },
+-    "runtimeFailureSetupHint": "如須調模型或設定，請於同僚所屬之機上為之。"
++    "runtimeFailureSetupHint": "如須調模型或設定，請於同僚所屬之機上為之。",
++    "capability": {
++      "GROUP_AUTHORIZATION_REQUIRED": "{{name}} 的工具呼叫未執行：群內授權已失效或不允許此操作。請由夥伴主人在目前群組重新發起。",
++      "GROUP_AUTHORIZATION_UNAVAILABLE": "暫時無法核驗 {{name}} 的群聊授權，這次工具呼叫未執行。請在連線恢復後重試。",
++      "ATTACHMENTS_UNAVAILABLE": "部分附件未交給 {{name}}（下載失敗或數量限制）。請重新傳送這次需要的附件。"
++    }
+   },
+   "plan": {
+     "intro_one": "此事分 {{count}} 步，吾如是分職：",
+
+diff --git a/apps/mobile/src/i18n/locales/zh-TW/groupChat.json b/apps/mobile/src/i18n/locales/zh-TW/groupChat.json
+@@ -155,7 +155,12 @@
+         "details": "請重新傳送訊息；若仍失敗，請查看記錄並回報問題。"
+       }
+     },
+-    "runtimeFailureSetupHint": "如需調整模型或設定，請在夥伴所屬電腦上處理。"
++    "runtimeFailureSetupHint": "如需調整模型或設定，請在夥伴所屬電腦上處理。",
++    "capability": {
++      "GROUP_AUTHORIZATION_REQUIRED": "{{name}} 的工具呼叫未執行：群內授權已失效或不允許此操作。請由夥伴主人在目前群組重新發起。",
++      "GROUP_AUTHORIZATION_UNAVAILABLE": "暫時無法核驗 {{name}} 的群聊授權，這次工具呼叫未執行。請在連線恢復後重試。",
++      "ATTACHMENTS_UNAVAILABLE": "部分附件未交給 {{name}}（下載失敗或數量限制）。請重新傳送這次需要的附件。"
++    }
+   },
+   "plan": {
+     "intro_one": "這件事分 {{count}} 步，我這樣分工：",
+
+diff --git a/apps/mobile/src/session/BotGroupChatScreen.tsx b/apps/mobile/src/session/BotGroupChatScreen.tsx
+@@ -48,6 +48,7 @@ import { resolveRemoteText } from '@cindy/device-link';
+ import {
+   BOT_GROUP_REMOTE_COLLECTION_ID,
+   isBotGroupRuntimeFailureCode,
++  isBotGroupCapabilityNoticeCode,
+   resolveBotGroupQuote,
+   BOT_GROUP_MEMBER_LINK_REL,
+   botGroupQuoteFromMessage,
+@@ -310,7 +311,10 @@ function BotGroupChatContent({ deviceId, deviceName, groupId, messageId, notific
+       || measured.contentHeight - measured.offsetY - measured.viewportHeight >= STICK_TO_BOTTOM_PX) return;
+     setSeen(previous => previous?.owner === viewportOwner && previous.sequence === latestSequence
+       ? previous : { owner: viewportOwner, sequence: latestSequence });
+-    const incoming = group.messages.filter(message => (!threadRootId || message.threadRootId === threadRootId) && message.kind === 'message' && message.isSelf !== true
++    const incoming = group.messages.filter(message => (!threadRootId || message.threadRootId === threadRootId)
++      && (message.kind === 'message' || (message.kind === 'notice' && message.authorKind === 'bot' && !message.deleted
++        && (message.threadRootId ?? undefined) === threadRootId && isBotGroupCapabilityNoticeCode(message.capabilityNoticeCode)))
++      && message.isSelf !== true
+       && (message.authorKind === 'bot' || (message.authorKind === 'user' && message.isSelf === false))
+     );
+     if (chat.server && chat.markRead) { void chat.markRead(incoming.map(message => message.id)); return; }
+@@ -1026,6 +1030,7 @@ function BotGroupTimelineItem({
+   if (message.kind === 'plan-end') return <BotGroupPlanEndDivider stepCount={plan ? plan.steps.length : null} />;
+   if (message.kind === 'notice' || (message.authorKind === 'system' && message.kind !== 'plan')) {
+     const name = message.authorName.trim() || member?.name || '';
++    if (isBotGroupCapabilityNoticeCode(message.capabilityNoticeCode)) return <Text style={styles.capabilityNotice} testID="botGroup.notice">{t(`groupChat.notice.capability.${message.capabilityNoticeCode}`, { name })}</Text>;
+     if (isBotGroupRuntimeFailureCode(message.runtimeFailureCode)) {
+       return <BotGroupRuntimeFailureNotice key={message.id} code={message.runtimeFailureCode} name={name} />;
+     }
+@@ -1162,6 +1167,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+     paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+   olderNote: { color: colors.textTertiary, fontSize: typeScale.footnote, lineHeight: lineHeight.caption, textAlign: 'center' },
+   time: { color: colors.textTertiary, fontSize: typeScale.caption, lineHeight: lineHeight.caption, textAlign: 'center' },
++  capabilityNotice: { color: colors.textSecondary, fontSize: typeScale.footnote, lineHeight: lineHeight.caption, textAlign: 'center' },
+   notice: { color: colors.textTertiary, fontSize: typeScale.footnote, lineHeight: lineHeight.caption, textAlign: 'center' },
+   dividerText: { flexShrink: 1, color: colors.textTertiary, fontSize: typeScale.footnote, lineHeight: lineHeight.caption, textAlign: 'center' },
+   userRow: { flexDirection: 'row', justifyContent: 'flex-end' },
+
+diff --git a/apps/mobile/src/session/botGroupRemote.ts b/apps/mobile/src/session/botGroupRemote.ts
+@@ -13,6 +13,7 @@ import {
+   BOT_GROUP_REMOTE_COLLECTION_ID,
+   BOT_GROUP_REMOTE_RESOURCE_KIND,
+   isBotGroupRuntimeFailureCode,
++  isBotGroupCapabilityNoticeCode,
+   parseBotGroupQuoteView,
+   parseBotGroupTaskCardView,
+   parseBotGroupProcessRef,
+@@ -247,6 +248,8 @@ function parseMessage(value: unknown): BotGroupMessageView | null {
+     mentions: parseMentions(record.mentions),
+     noticeCode,
+     ...(isBotGroupRuntimeFailureCode(record.runtimeFailureCode) ? { runtimeFailureCode: record.runtimeFailureCode } : {}),
++    ...(kind === 'notice' && authorKind === 'bot' && record.deleted !== true && isBotGroupCapabilityNoticeCode(record.capabilityNoticeCode)
++      ? { capabilityNoticeCode: record.capabilityNoticeCode } : {}),
+     planId: optionalId(record.planId),
+     files: stringList(record.files, MAX_FILES, 1_024),
+     // Older computers send no attachments.
+
+diff --git a/docs/dev-rules/protocol-compatibility.md b/docs/dev-rules/protocol-compatibility.md
+@@ -1,5 +1,13 @@
+ # 跨端协议兼容
+ 
++## 群内能力提示（非执行终态）
++
++复用现有通用 card 消息合同，新增 `cindy.capability-notice` / `schemaRevision: 1`：data 只带固定 code（`GROUP_AUTHORIZATION_REQUIRED`、`GROUP_AUTHORIZATION_UNAVAILABLE`、`ATTACHMENTS_UNAVAILABLE`），fallback 为执行电脑本地化的完整可读提示。以伙伴 actor 发往原主群或话题；同执行 ID、epoch、类别复用同一稳定幂等 ID，并按既有消息 POST 合同放入 `operationId`（不发送本地 `clientId` 字段）；投递重试不创建执行、不结算模型轮次。
++
++Desktop 和 Mobile 共用 shared parser，仅认可未删除的伙伴作者消息、单个完整 card、已知版本及白名单类别；普通人或未知／混合内容继续普通消息展示。Desktop 发往手机的既有消息视图可选追加 `capabilityNoticeCode`，手机 Remote Resource 解析仅保留未删除的伙伴 notice 上的白名单类别，content 保留 fallback，旧手机忽略新字段仍可读；手机直连自行投影，新手机连旧电脑仍用旧内容。旧桌面／手机直连把未知卡片显示为伙伴消息的 fallback，不丢失提示。
++
++不改服务端接口、权限档、原生配置、schema 或数据库 migration。提示只有原因，没有原始工具参数、路径或错误正文。回滚客户端后沿用 fallback，不修改已有历史。
++
+ ## 群聊代答的工作记录兼容（2026-11-03）
+ 
+ 已发布 Desktop 在普通和个人代答的完成请求中附带 `cindy.work-record` revision 1，
+
+diff --git a/docs/product-rules/bot-group-chat.md b/docs/product-rules/bot-group-chat.md
+@@ -235,6 +235,8 @@ Chat Server 声明 `capabilities.groupSingleSpeaker: 1` 时，服务器群按下
+   跑工具、实测、看文件，宿主不用更短的墙钟把它切断；专线真正挂住由会话自己的空闲看门狗收口。
+   发送前拒绝同样立即收尾，不等待模型事件或超时；按输入 clientId 匹配执行，旧输入不能结束新执行，
+   用户主动停止不作为失败。隐藏输入从队列撤下，避免下一条群消息带出已失败的旧输入。
++  群专线执行中，群工具实时核验发现授权被撤销而被拒、因暂时无法核验授权而未执行，或部分附件因下载失败／数量上限未送达时，宿主在同一主群或话题发出能力提示；不依赖伙伴自行解释，不结束或重跑当前执行。权限档原本禁止的操作（chat 档工具、tools 档主人操作）照旧只返回模型，不发布群提示。每次执行的同一原因只发布一条，提示仅包含固定原因和可操作建议，不包含工具参数、原始错误、文件路径或私人诊断；图片输入能力不支持继续使用下面已有的运行失败提示。
++  提示复用伙伴身份的群消息，桌面和手机按同一白名单类别本地化呈现；普通人发送的同名卡片、未知类别或混入其他正文的卡片不作为能力提示。未删除伙伴的白名单能力提示计入两端主群／话题的新消息数量，沿用当前视口尾部、去重、本人和主群／话题过滤；普通系统提示及未知类别不增加计数。用户在手机主群或话题看见能力提示并停在末尾时，提示按已显示消息确认已读；后台、未测量或未到底的页面不提前推进读位。提示正文不进入伙伴后续模型上下文，也不作为新的指令或授权。临时投递失败只重试同一提示，不重跑模型；当前客户端运行期最多尝试 3 次；服务端给出 Retry-After 时，下一次不早于该截止时间，仍复用同一 clientId、次数不重置；换账号或退出时停止，没有跨重启补发保证。仅覆盖正常伙伴群执行，个人 AI 回复模式不发此类伙伴身份提示。
+   提示尽可能说明原因和解决办法：图片能力、模型可用性、认证、限流、额度、网络和超时分别本地化，
+   未知错误给出重新发送和查看日志的建议；原始错误、私人路径、响应正文和凭证不进入群聊。
+   运行终态以 `sdkError`、`errorStatus`、`usageLimit` 等结构化信号及既有确定性额度判定分类；
+
+diff --git a/packages/maker-shared/src/__tests__/botGroupPresentation.test.ts b/packages/maker-shared/src/__tests__/botGroupPresentation.test.ts
+@@ -59,6 +59,23 @@ it('counts only new messages from other people and companions below the observed
+   ], '9007199254740992')).toBe(1);
+ });
+ 
++// #8443 P2 / unit: delayed capability notices need the same return-to-tail
++// affordance in both clients; ordinary notices must not inflate the count.
++it.each([undefined, 'root'])('counts delayed capability notices in their lane (%s)', threadRootId => {
++  const notice = { id: 'capability', sequence: 11, kind: 'notice', authorKind: 'bot',
++    capabilityNoticeCode: 'GROUP_AUTHORIZATION_REQUIRED', threadRootId } as BotGroupMessageView;
++  expect(botGroupNewMessageCount([notice, notice], 10, threadRootId)).toBe(1);
++  expect(botGroupNewMessageCount([notice], 11, threadRootId)).toBe(0);
++  expect(botGroupNewMessageCount([notice], null, threadRootId)).toBe(0);
++  const excluded = [
++    { ...notice, deleted: true }, { ...notice, isSelf: true },
++    { ...notice, authorKind: 'system' }, { ...notice, authorKind: 'user', isSelf: false },
++    { ...notice, capabilityNoticeCode: undefined }, { ...notice, capabilityNoticeCode: 'UNKNOWN' },
++    { ...notice, threadRootId: threadRootId ? undefined : 'other' },
++  ] as BotGroupMessageView[];
++  expect(botGroupNewMessageCount(excluded, 10, threadRootId)).toBe(0);
++});
++
+ describe('server group membership affordances', () => {
+   const self = { actorId: 'self', isSelf: true, isOwned: true, role: 'member' } as BotGroupMemberView;
+   const ownBot = { actorId: 'own-bot', actorKind: 'bot', isOwned: true, role: 'owner' } as BotGroupMemberView;
+
+diff --git a/packages/maker-shared/src/__tests__/botGroupRuntimeFailure.test.ts b/packages/maker-shared/src/__tests__/botGroupRuntimeFailure.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, expect, it } from 'vitest';
+-import { readImportedBotGroupRuntimeFailureCode } from '../botGroupChat.js';
++import { buildBotGroupCapabilityNotice, readBotGroupCapabilityNotice, readImportedBotGroupRuntimeFailureCode } from '../botGroupChat.js';
+ 
+ const card = { type: 'card', namespace: 'cindy.local-history', schemaRevision: 1,
+   fallback: 'group activity', data: { kind: 'notice', authorKind: 'system', runtimeFailureCode: 'AUTH_REQUIRED' } };
+@@ -36,3 +36,20 @@ describe('imported group runtime notices', () => {
+     }
+   });
+ });
++
++// Unit: host capability notices share the timeline but must not let human cards
++// impersonate a host result or transport unknown/raw diagnostics.
++describe('non-terminal group capability notices', () => {
++  const content = [buildBotGroupCapabilityNotice('ATTACHMENTS_UNAVAILABLE', 'public fallback')];
++  it('round-trips only a public category from one companion-authored card', () => {
++    expect(readBotGroupCapabilityNotice({ author: { kind: 'bot' }, content })).toBe('ATTACHMENTS_UNAVAILABLE');
++  });
++  it.each([
++    { author: { kind: 'human' }, content }, { author: { kind: 'bot' }, content, deleted: true },
++    { author: { kind: 'bot' }, content: [...content, { type: 'text', text: 'unrelated' }] },
++    { author: { kind: 'bot' }, content: [{ ...content[0], schemaRevision: 2 }] },
++    { author: { kind: 'bot' }, content: [{ ...content[0], data: { code: 'private diagnostic' } }] },
++  ])('leaves forged, deleted, mixed or unknown messages as ordinary content: %j', message => {
++    expect(readBotGroupCapabilityNotice(message)).toBeUndefined();
++  });
++});
+
+diff --git a/packages/maker-shared/src/botGroupChat.ts b/packages/maker-shared/src/botGroupChat.ts
+@@ -46,6 +46,26 @@ export type BotGroupNoticeCode =
+   | 'workdir-unavailable';
+ export type BotGroupMemberStatus = 'active' | 'paused' | 'error' | 'archived' | 'deleting' | 'missing';
+ 
++/** Non-terminal host notices: these never settle a turn or change execution status. */
++export const BOT_GROUP_CAPABILITY_NOTICE_CODES = ['GROUP_AUTHORIZATION_REQUIRED', 'GROUP_AUTHORIZATION_UNAVAILABLE', 'ATTACHMENTS_UNAVAILABLE'] as const;
++export type BotGroupCapabilityNoticeCode = typeof BOT_GROUP_CAPABILITY_NOTICE_CODES[number];
++export function isBotGroupCapabilityNoticeCode(value: unknown): value is BotGroupCapabilityNoticeCode {
++  return BOT_GROUP_CAPABILITY_NOTICE_CODES.some(code => code === value);
++}
++export function readBotGroupCapabilityNotice(message: {
++  deleted?: unknown; author?: { kind?: unknown };
++  content: readonly { type?: unknown; namespace?: unknown; schemaRevision?: unknown; data?: unknown }[];
++}): BotGroupCapabilityNoticeCode | undefined {
++  if (message.deleted === true || message.author?.kind !== 'bot' || message.content.length !== 1) return undefined;
++  const card = message.content[0];
++  if (card?.type !== 'card' || card.namespace !== 'cindy.capability-notice' || card.schemaRevision !== 1) return undefined;
++  const code = card.data && typeof card.data === 'object' ? (card.data as { code?: unknown }).code : undefined;
++  return isBotGroupCapabilityNoticeCode(code) ? code : undefined;
++}
++export function buildBotGroupCapabilityNotice(code: BotGroupCapabilityNoticeCode, fallback: string) {
++  return { type: 'card' as const, namespace: 'cindy.capability-notice', schemaRevision: 1, fallback, data: { code } };
++}
++
+ /** Public failure categories only; never transport raw Agent errors into a group. */
+ export const BOT_GROUP_RUNTIME_FAILURE_CODES = [
+   'IMAGE_INPUT_UNSUPPORTED', 'MODEL_UNAVAILABLE', 'AUTH_REQUIRED', 'RATE_LIMITED', 'UPSTREAM_OVERLOADED',
+@@ -178,6 +198,7 @@ export interface BotGroupMessageView {
+   noticeCode: BotGroupNoticeCode | null;
+   /** Localized cause and remedy for a failed execution; raw diagnostics stay on the executor. */
+   runtimeFailureCode?: BotGroupRuntimeFailureCode;
++  capabilityNoticeCode?: BotGroupCapabilityNoticeCode;
+   /** The plan this message belongs to: the 安排卡, a step hand-off or the plan's end. */
+   planId: string | null;
+   /** Step hand-off files, relative to the plan's work directory (POSIX separators). */
+
+diff --git a/packages/maker-shared/src/botGroupPresentation.ts b/packages/maker-shared/src/botGroupPresentation.ts
+@@ -6,6 +6,7 @@
+ import { RichAnswerStream, splitRichAnswer, richMarkdown, richString, richLabel, richResolvedValues, richChart, richOptions, richCalculationUnavailable } from './richAnswer.js';
+ import {
+   isBotGroupPlanOpen,
++  isBotGroupCapabilityNoticeCode,
+   type BotGroupDetail,
+   type BotGroupErrorCode,
+   type BotGroupExecutionFailureView,
+@@ -90,7 +91,8 @@ export function botGroupNewMessageCount(messages: readonly BotGroupMessageView[]
+   const incoming = new Set<string>();
+   for (const message of messages) {
+     if (BigInt(message.serverSequence ?? message.sequence) <= BigInt(seenThrough) || message.deleted || (message.threadRootId ?? undefined) !== threadRootId || message.isSelf === true
+-      || (message.kind !== 'message' && message.kind !== 'plan')
++      || (message.kind !== 'message' && message.kind !== 'plan'
++        && !(message.kind === 'notice' && message.authorKind === 'bot' && isBotGroupCapabilityNoticeCode(message.capabilityNoticeCode)))
+       || (message.authorKind !== 'bot' && message.isSelf !== false) || message.authorKind === 'system') continue;
+     incoming.add(message.id);
+   }

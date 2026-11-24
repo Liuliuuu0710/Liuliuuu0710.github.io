@@ -1,0 +1,521 @@
+diff --git a/apps/desktop/scripts/fixtures/issue6796-preview/preview.tsx b/apps/desktop/scripts/fixtures/issue6796-preview/preview.tsx
+@@ -0,0 +1,127 @@
++import { useState } from 'react';
++import { mountPage } from '../../ui-page/harness';
++import { UserMessage } from '../../../src/renderer/components/chat/UserMessage';
++import { ChatImageView } from '../../../src/renderer/components/chat/ChatImageView';
++import { BotGroupMessageAttachments } from '../../../src/renderer/features/bots/BotGroupMessageAttachments';
++
++function sample(width: number, height: number) {
++  const canvas = document.createElement('canvas');
++  canvas.width = width;
++  canvas.height = height;
++  const c = canvas.getContext('2d')!;
++  c.fillStyle = '#f7f7f5';
++  c.fillRect(0, 0, width, height);
++  c.fillStyle = '#222222';
++  c.font = 'bold 56px sans-serif';
++  c.fillText('SYNTHETIC IMAGE', 48, 80);
++  c.font = '48px sans-serif';
++  c.fillText(`${width} × ${height}`, 48, 160);
++  for (let y = 220, i = 1; y < height - 180; y += 280, i++) {
++    c.fillStyle = '#ffffff';
++    c.fillRect(32, y, width - 64, 250);
++    c.fillStyle = '#222222';
++    c.font = 'bold 56px sans-serif';
++    c.fillText(`Section ${i}`, 64, y + 70);
++    c.font = '48px sans-serif';
++    c.fillText('A sample paragraph.', 64, y + 140);
++    c.fillText('No private data.', 64, y + 210);
++  }
++  c.fillStyle = '#222222';
++  c.font = 'bold 48px sans-serif';
++  c.fillText('END OF ORIGINAL', 48, height - 35);
++  return canvas.toDataURL('image/png');
++}
++const long = sample(1080, 6000);
++const portrait = sample(1080, 2400);
++const text =
++  '请帮我检查这张页面长截图中的排版：标题、正文和各段之间的间距是否协调？这段文字仅用于复现图文气泡的宽度，图片也是专门生成的无隐私样例。';
++function Replacement() {
++  const [changed, setChanged] = useState(false);
++  return (
++    <>
++      <button onClick={() => setChanged(!changed)}>Switch sample</button>
++      <ChatImageView
++        src={changed ? portrait : long}
++        filename="replacement.png"
++        variant="user-attached"
++      />
++    </>
++  );
++}
++void mountPage({
++  route: '/cc-agent/preview-6796',
++  render: (ctx) => (
++    <main data-ui-page-subject style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
++      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
++        #{6796} · Synthetic images · Production components
++      </p>
++      {ctx.case === 'boundaries' ? (
++        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
++          {[
++            [1080, 3241],
++            [1080, 3240],
++            [1080, 2400],
++            [1920, 1080],
++          ].map(([w, h]) => (
++            <section key={h} data-sample={`${w}x${h}`}>
++              <p>
++                {w} × {h}
++              </p>
++              <ChatImageView
++                src={sample(w, h)}
++                filename={`${w}x${h}.png`}
++                variant="user-attached"
++              />
++            </section>
++          ))}
++          <section data-sample="tool">
++            <p>Tool output</p>
++            <ChatImageView src={long} filename="tool.png" variant="tool-output" />
++          </section>
++        </div>
++      ) : ctx.case === 'shared' ? (
++        <>
++          <p>Task</p>
++          <UserMessage
++            workingDir="/synthetic-preview"
++            content={text}
++            images={[{ url: long, originalName: 'task.png' }]}
++          />
++          <p>Group / 180px container</p>
++          <div style={{ width: 180, maxWidth: '100%' }}>
++            <BotGroupMessageAttachments
++              align="end"
++              attachments={[
++                {
++                  id: 'synthetic',
++                  name: 'group.png',
++                  category: 'image',
++                  mimeType: 'image/png',
++                  size: 1,
++                  url: long,
++                  path: null,
++                },
++              ]}
++            />
++          </div>
++        </>
++      ) : ctx.case === 'replacement' ? (
++        <Replacement />
++      ) : (
++        ['mixed', 'image'].map((kind) => (
++          <section key={kind} data-sample={kind} style={{ marginBottom: 28 }}>
++            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
++              {kind === 'mixed' ? '图文混合' : '纯图片'}
++            </p>
++            <UserMessage
++              workingDir="/synthetic-preview"
++              simplifiedBotConversation
++              content={kind === 'mixed' ? text : ''}
++              images={[{ url: long, originalName: 'long.png' }]}
++            />
++          </section>
++        ))
++      )}
++    </main>
++  ),
++});
+
+diff --git a/apps/desktop/scripts/fixtures/issue6796-preview/ui-page.mjs b/apps/desktop/scripts/fixtures/issue6796-preview/ui-page.mjs
+@@ -0,0 +1,78 @@
++import assert from 'node:assert/strict';
++export default {
++  name: 'issue6796-preview',
++  entry: './preview.tsx',
++  viewport: { width: 720, height: 1100 },
++  real: 'UserMessage, BotGroupMessageAttachments, ChatImageView, ChatLoadingImage and ImageLightbox; no fixture CSS overrides',
++  notCovered:
++    'Live sending/storage, remote media transport, native copy/reveal, mobile and Windows',
++  cases: {
++    default: { about: 'Companion mixed and image-only long attachments' },
++    boundaries: { about: 'Ratio above/equal 3, portrait, landscape and unchanged tool output' },
++    shared: { about: 'Task and group attachment, including 180px container' },
++    replacement: { about: 'Replace long image with ordinary portrait after loading' },
++  },
++  async ready(page) {
++    await page.waitForFunction(
++      () =>
++        document.querySelectorAll('img[data-gallery-src]').length > 0 &&
++        [...document.querySelectorAll('img[data-gallery-src]')].every(
++          (i) => i.complete && i.naturalWidth > 0 && i.getBoundingClientRect().height > 0,
++        ),
++    );
++  },
++  async check(page, ui) {
++    const imgs = page.locator('img[data-gallery-src]');
++    for (const image of await imgs.all()) {
++      const data = await image.evaluate((i) => ({
++        w: i.getBoundingClientRect().width,
++        h: i.getBoundingClientRect().height,
++        nw: i.naturalWidth,
++        nh: i.naturalHeight,
++        fit: getComputedStyle(i).objectFit,
++        hint: i.getAttribute('aria-describedby'),
++        alt: i.alt,
++      }));
++      const long = data.nh / data.nw > 3 && data.alt !== 'tool.png';
++      assert.equal(Boolean(data.hint), long);
++      if (long) {
++        assert.equal(data.fit, 'cover');
++        assert(data.w <= 240);
++        assert(Math.abs(data.w - data.h) < 1);
++      } else assert.equal(data.fit, 'contain');
++    }
++    if (ui.case === 'replacement') {
++      await page.getByRole('button', { name: 'Switch sample' }).click();
++      await page.waitForFunction(
++        () => document.querySelector('img[data-gallery-src]').naturalHeight === 2400,
++      );
++      assert.equal(await imgs.first().getAttribute('aria-describedby'), null);
++      await ui.capture('ordinary-replacement');
++      return;
++    }
++    if (ui.case !== 'default') return;
++    const trigger = imgs.first();
++    const src = await trigger.getAttribute('src');
++    await trigger.focus();
++    await page.keyboard.press('Enter');
++    await page.waitForFunction(() =>
++      [...document.querySelectorAll('img:not([data-gallery-src])')].some(
++        (i) => i.naturalHeight === 6000,
++      ),
++    );
++    const original = page.locator('img:not([data-gallery-src])').filter({ visible: true }).first();
++    assert.equal(await original.getAttribute('src'), src);
++    assert.equal(await original.evaluate((i) => i.naturalHeight), 6000);
++    await ui.capture('full-original');
++    await page.keyboard.press('+');
++    await page.waitForFunction(() =>
++      [...document.querySelectorAll('img:not([data-gallery-src])')].some(
++        (i) =>
++          i.parentElement.style.transform.includes('scale(') &&
++          !i.parentElement.style.transform.includes('scale(1)'),
++      ),
++    );
++    await page.keyboard.press('Escape');
++    await page.waitForFunction(() => document.activeElement?.hasAttribute('data-gallery-src'));
++  },
++};
+
+diff --git a/apps/desktop/src/main/maker-ipc/__tests__/agent-input-coordinator.test.ts b/apps/desktop/src/main/maker-ipc/__tests__/agent-input-coordinator.test.ts
+@@ -14532,6 +14532,7 @@ describe('usage-limit wait (ordinary tasks)', () => {
+       session, didInjectOrcaInstructions: false, didInjectProjectContext: false,
+     })).mockRejectedValueOnce(quota);
+     const transaction = createMakerSendTransaction({
++      statDirectory: async () => ({ isDirectory: () => true }),
+       getSession: () => rehydrate ? session : undefined,
+       closeSession: async () => {}, preflightBotRuntimeResources: async () => {},
+       getSessionMeta: async () => ({}), ensureRemoteReadyForSessionStart: async () => {},
+
+diff --git a/apps/desktop/src/renderer/__tests__/chatImageView.test.ts b/apps/desktop/src/renderer/__tests__/chatImageView.test.ts
+@@ -30,6 +30,7 @@ vi.mock('../components/chat/ImageMissingPlaceholder', () => ({
+ }));
+ 
+ import { ChatImageView } from '../components/chat/ChatImageView';
++import { prepareShareMessageClone } from '../lib/shareConversationImage';
+ 
+ afterEach(() => {
+   cleanup();
+@@ -38,6 +39,59 @@ afterEach(() => {
+ });
+ 
+ describe('ChatImageView', () => {
++  // PR #6943 review: exporting a loaded long attachment must keep its image,
++  // but omit the live-only click promise. Existing clone tests use synthetic DOM.
++  it('omits the interactive long-image hint from the static share clone', () => {
++    const { container } = render(React.createElement(ChatImageView, {
++      src: 'data:image/png;base64,test', filename: 'long.png', variant: 'user-attached',
++    }));
++    const image = screen.getByAltText('long.png');
++    Object.defineProperties(image, { naturalWidth: { value: 100 }, naturalHeight: { value: 301 } });
++    fireEvent.load(image);
++    expect(screen.getByText('chat.media.longImagePreview')).toBeTruthy();
++    const clone = prepareShareMessageClone(container);
++    expect(clone?.querySelector('img')?.getAttribute('src')).toBe(image.getAttribute('src'));
++    expect(clone?.textContent).not.toContain('chat.media.longImagePreview');
++    expect(screen.getByText('chat.media.longImagePreview')).toBeTruthy();
++  });
++
++  // #6796, unit: existing coverage only exercised loading/errors and click routing.
++  // A 100x301 user attachment must expose the crop warning; 100x300 must not.
++  // Source replacement must not inherit the previous image's crop decision.
++  it.each([
++    ['user-attached', 100, 301, true],
++    ['user-attached', 100, 300, false],
++    ['user-attached', 100, 200, false],
++    ['user-attached', 200, 100, false],
++    ['user-attached', 0, 600, false],
++    ['tool-output', 100, 600, false],
++  ] as const)('%s %sx%s announces a partial preview: %s', (variant, width, height, cropped) => {
++    render(React.createElement(ChatImageView, { src: 'data:image/png;base64,test', filename: 'sample.png', variant }));
++    const image = screen.getByAltText('sample.png');
++    expect(image.getAttribute('aria-describedby')).toBeNull();
++    Object.defineProperties(image, { naturalWidth: { value: width }, naturalHeight: { value: height } });
++    fireEvent.load(image);
++    const description = image.getAttribute('aria-describedby');
++    expect(Boolean(description)).toBe(cropped);
++    if (description) expect(document.getElementById(description)?.textContent).toBe('chat.media.longImagePreview');
++  });
++
++  it('forgets the crop warning on source replacement and keeps keyboard preview available', () => {
++    const props = { filename: 'sample.png', variant: 'user-attached' as const };
++    const { rerender } = render(React.createElement(ChatImageView, { ...props, src: 'first.png' }));
++    const image = screen.getByAltText('sample.png');
++    Object.defineProperties(image, { naturalWidth: { value: 100 }, naturalHeight: { value: 600 } });
++    fireEvent.load(image);
++    expect(image.getAttribute('aria-describedby')).toBeTruthy();
++    fireEvent.keyDown(image, { key: 'Enter' });
++    expect(screen.getByTestId('image-lightbox')).toBeTruthy();
++    fireEvent.click(screen.getByTestId('image-lightbox'));
++    expect(document.activeElement).toBe(image);
++    rerender(React.createElement(ChatImageView, { ...props, src: 'next.png' }));
++    expect(screen.getByAltText('sample.png').getAttribute('aria-describedby')).toBeNull();
++    expect(screen.queryByText('chat.media.longImagePreview')).toBeNull();
++  });
++
+   describe.each(['user-attached', 'tool-output'] as const)('%s diagnostics', (variant) => {
+     it('keeps a loading frame until decode and resets it for a different source', async () => {
+       const props = { filename: 'a.png', variant };
+
+diff --git a/apps/desktop/src/renderer/components/chat/ChatImageView.tsx b/apps/desktop/src/renderer/components/chat/ChatImageView.tsx
+@@ -7,7 +7,7 @@
+  *
+  * variant 决定尺寸 + 边框,行为(click→ImageLightbox / error→placeholder /
+  * draggable=false / hover opacity)完全一致:
+- *   - 'user-attached': 用户上传到 chat 输入框的图,固定 280×180,无边框。
++ *   - 'user-attached': 用户附图通常收进 280×180；高宽比 >3 时顶部预览 240×240。
+  *     视觉上"附件"感,不抢主区域注意力。
+  *   - 'tool-output':   agent 工具产出的图(art 出图、飞书拉图等),走 Markdown
+  *     内嵌图同款规则 min(100%, 50vw, 480px) × min(40vh, 420px),带 tool-card
+@@ -24,7 +24,7 @@
+  */
+ 
+ import { CHAT_FOCUS_CLASS } from './chatChrome';
+-import { useRef, useState } from 'react';
++import { useId, useRef, useState } from 'react';
+ import { Box, Copy, FolderOpen } from 'lucide-react';
+ import { useTranslation } from 'react-i18next';
+ import { cn } from '@/lib/utils';
+@@ -85,7 +85,7 @@ const VARIANT_STYLES: Record<
+   }
+ > = {
+   'user-attached': {
+-    // F-MSG-IMG: 用户上传图固定 280×180——附件感,不抢主区域。
++    // 普通用户附图保持 contain 边界；长图在加载自然尺寸后使用顶部预览。
+     style: { maxWidth: 280, maxHeight: 180 },
+     className: 'rounded-xl object-contain cursor-pointer hover:opacity-90 transition-opacity',
+   },
+@@ -122,6 +122,15 @@ export function ChatImageView({
+   // 同一个 state 槽位避免两种 lightbox 同时出现 (且统一受 scroll-lock 影响)。
+   const [lightboxOpen, setLightboxOpen] = useState<'image' | 'model' | null>(null);
+   const previewTriggerRef = useRef<HTMLImageElement>(null);
++  const longImageHintId = useId();
++  const [imageSize, setImageSize] = useState<{ src: string; width: number; height: number } | null>(null);
++  // #6796: crop only the thumbnail; gallery, lightbox and clipboard retain displaySrc.
++  // Key the measurement by the resolved URL so replacement/remote resolution cannot
++  // temporarily apply the previous image's dimensions to a different attachment.
++  const longImage =
++    variant === 'user-attached' && !modelFile &&
++    imageSize?.src === displaySrc && imageSize.width > 0 &&
++    imageSize.height / imageSize.width > 3;
+   const closePreview = () => {
+     setLightboxOpen(null);
+     previewTriggerRef.current?.focus({ preventScroll: true });
+@@ -191,46 +200,70 @@ export function ChatImageView({
+ 
+   return (
+     <>
+-      <ChatLoadingImage
+-        ref={previewTriggerRef}
+-        src={displaySrc}
+-        alt={filename}
+-        style={style}
+-        className={cn(className, CHAT_FOCUS_CLASS, 'motion-reduce:transition-none')}
+-        role="button"
+-        tabIndex={0}
+-        onKeyDown={(event) => {
+-          if (event.key === 'Enter' || event.key === ' ') {
+-            event.preventDefault();
+-            event.currentTarget.click();
+-          }
+-        }}
+-        draggable={false}
+-        // 会话内翻图的数据源:lightbox 打开后会扫描所有带此属性的图,按 DOM
+-        // 顺序拼成可左右翻页的列表。见 ImageLightbox.collectGallery。
+-        data-gallery-src={displaySrc}
+-        // 3D 模型预览图 → 弹 ModelLightbox 直接渲真模型;普通图 → 走 ImageLightbox。
+-        // model-viewer 只原生支持 glTF/GLB,非此两者退回 2D 预览,
+-        // 用户仍可右键 "打开模型" 用系统程序打开。
+-        onClick={(e) => {
+-          const next =
+-            modelFile && ['GLB', 'GLTF'].includes(modelFile.format.toUpperCase())
+-              ? 'model'
+-              : 'image';
+-          // 打 image lightbox 前,在被点的这张图上做个临时标记,让 lightbox
+-          // 精确定位到用户点的这张(而不是按 src 搜到的第一张)。model 路径
+-          // 不进 gallery,不标记。
+-          if (next === 'image') e.currentTarget.dataset.galleryActive = '1';
+-          setLightboxOpen(next);
+-        }}
+-        onContextMenu={(e) => {
+-          if (!showMenu) return;
+-          e.preventDefault();
+-          e.stopPropagation();
+-          setMenuPos({ x: e.clientX, y: e.clientY });
+-        }}
+-        onError={remote ? onLoadError : localFailure.onError}
+-      />
++      <span
++        className={longImage ? 'relative inline-flex min-w-0 max-w-full' : 'contents'}
++        style={longImage ? { width: 240, aspectRatio: '1' } : undefined}
++      >
++        <ChatLoadingImage
++          ref={previewTriggerRef}
++          src={displaySrc}
++          alt={filename}
++          style={longImage ? {
++            position: 'absolute', inset: 0,
++            width: '100%', height: '100%',
++            objectFit: 'cover', objectPosition: 'top',
++          } : style}
++          aria-describedby={longImage ? longImageHintId : undefined}
++          onLoad={(event) => {
++            const image = event.currentTarget;
++            if (!image.isConnected) return;
++            setImageSize({ src: displaySrc, width: image.naturalWidth, height: image.naturalHeight });
++          }}
++          className={cn(className, CHAT_FOCUS_CLASS, 'motion-reduce:transition-none')}
++          role="button"
++          tabIndex={0}
++          onKeyDown={(event) => {
++            if (event.key === 'Enter' || event.key === ' ') {
++              event.preventDefault();
++              event.currentTarget.click();
++            }
++          }}
++          draggable={false}
++          // 会话内翻图的数据源:lightbox 打开后会扫描所有带此属性的图,按 DOM
++          // 顺序拼成可左右翻页的列表。见 ImageLightbox.collectGallery。
++          data-gallery-src={displaySrc}
++          // 3D 模型预览图 → 弹 ModelLightbox 直接渲真模型;普通图 → 走 ImageLightbox。
++          // model-viewer 只原生支持 glTF/GLB,非此两者退回 2D 预览,
++          // 用户仍可右键 "打开模型" 用系统程序打开。
++          onClick={(e) => {
++            const next =
++              modelFile && ['GLB', 'GLTF'].includes(modelFile.format.toUpperCase())
++                ? 'model'
++                : 'image';
++            // 打 image lightbox 前,在被点的这张图上做个临时标记,让 lightbox
++            // 精确定位到用户点的这张(而不是按 src 搜到的第一张)。model 路径
++            // 不进 gallery,不标记。
++            if (next === 'image') e.currentTarget.dataset.galleryActive = '1';
++            setLightboxOpen(next);
++          }}
++          onContextMenu={(e) => {
++            if (!showMenu) return;
++            e.preventDefault();
++            e.stopPropagation();
++            setMenuPos({ x: e.clientX, y: e.clientY });
++          }}
++          onError={remote ? onLoadError : localFailure.onError}
++        />
++        {longImage && (
++          <span
++            id={longImageHintId}
++            data-share-exclude
++            className="pointer-events-none absolute bottom-2 left-2 right-2 w-fit max-w-[calc(100%_-_16px)] rounded-full bg-[var(--surface-elevated)] px-2 py-1 text-12 leading-[1.33] text-[var(--text-primary)]"
++          >
++            {t('chat.media.longImagePreview')}
++          </span>
++        )}
++      </span>
+       {showMenu ? (
+         <DropdownMenu
+           open={menuPos !== null}
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/en/common.json b/apps/desktop/src/renderer/i18n/locales/en/common.json
+@@ -11731,6 +11731,7 @@
+       "imageCopied": "Image copied",
+       "copyFailed": "Copy failed",
+       "openFolderFailed": "Failed to open folder",
++      "longImagePreview": "Long image · Click to view full image",
+       "copyImage": "Copy image",
+       "revealImage": "Reveal image in folder",
+       "revealImageSidebar": "Reveal in file browser",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/ja/common.json b/apps/desktop/src/renderer/i18n/locales/ja/common.json
+@@ -11692,6 +11692,7 @@
+       "imageCopied": "画像をコピーしました",
+       "copyFailed": "コピーに失敗しました",
+       "openFolderFailed": "フォルダを開けませんでした",
++      "longImagePreview": "縦長画像 · クリックで全体を表示",
+       "copyImage": "画像をコピー",
+       "revealImage": "画像のフォルダを開く",
+       "revealImageSidebar": "ファイルブラウザで表示",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/ko/common.json b/apps/desktop/src/renderer/i18n/locales/ko/common.json
+@@ -11692,6 +11692,7 @@
+       "imageCopied": "이미지를 복사했습니다",
+       "copyFailed": "복사에 실패했습니다",
+       "openFolderFailed": "폴더를 열지 못했습니다",
++      "longImagePreview": "긴 이미지 · 클릭하여 전체 보기",
+       "copyImage": "이미지 복사",
+       "revealImage": "이미지 폴더 열기",
+       "revealImageSidebar": "파일 브라우저에서 보기",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/zh-CN/common.json b/apps/desktop/src/renderer/i18n/locales/zh-CN/common.json
+@@ -11692,6 +11692,7 @@
+       "imageCopied": "图片已复制",
+       "copyFailed": "复制失败",
+       "openFolderFailed": "打开目录失败",
++      "longImagePreview": "长图 · 点击查看完整图片",
+       "copyImage": "复制图片",
+       "revealImage": "打开图片所在目录",
+       "revealImageSidebar": "在文件浏览器中显示",
+
+diff --git a/apps/desktop/src/renderer/i18n/locales/zh-TW/common.json b/apps/desktop/src/renderer/i18n/locales/zh-TW/common.json
+@@ -11691,6 +11691,7 @@
+       "imageCopied": "圖片已複製",
+       "copyFailed": "複製失敗",
+       "openFolderFailed": "開啟目錄失敗",
++      "longImagePreview": "長圖 · 點擊查看完整圖片",
+       "copyImage": "複製圖片",
+       "revealImage": "開啟圖片所在目錄",
+       "revealImageSidebar": "在檔案瀏覽器中顯示",
+
+diff --git a/docs/design-rules/DESIGN.md b/docs/design-rules/DESIGN.md
+@@ -676,6 +676,19 @@ release-notes entry. Updating keeps the existing confirm → busy warning → re
+ download happens in the normal startup Splash, not in the row.
+ 
+ 
++### User-attached long images
++
++Desktop user attachments with natural height / width **strictly greater than 3** use a
++240×240 top-aligned partial preview, shrinking to the available container width. A
++non-interactive pill overlay says “长图 · 点击查看完整图片” (localized); it uses semantic
++surface/text tokens and wraps in narrow containers. The image retains its existing
++12px content crop and keyboard/click target. Ordinary portraits, landscape images,
++unknown dimensions and tool-output images retain their existing contain rules.
++Click/Enter/Space still opens the complete original in ImageLightbox; gallery, copy,
++annotations and original bytes remain unchanged. This applies through the shared
++Desktop user-attachment renderer in private chats, groups and tasks.
++Decision: [#6796, maintainer confirmation](https://github.com/makecindy/cindy/issues/6796#issuecomment-6361112964).
++
+ ## 5. Layout Principles
+ 
+ ### Spacing System
+
+diff --git a/docs/design-rules/design-inventory.md b/docs/design-rules/design-inventory.md
+[GitHub omitted patch]

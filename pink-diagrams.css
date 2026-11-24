@@ -1,0 +1,16 @@
+
+:root{--diagram-bg:#f3edef;--diagram-ink:#956171;--diagram-line:#dfcbd3}
+@media(prefers-color-scheme:dark){:root{--diagram-bg:#292327;--diagram-ink:#bf95a4;--diagram-line:#5a444d}}
+html[data-theme=light]{--diagram-bg:#f3edef;--diagram-ink:#956171;--diagram-line:#dfcbd3}
+html[data-theme=dark]{--diagram-bg:#292327;--diagram-ink:#bf95a4;--diagram-line:#5a444d}
+.diagram,.detail-section .diagram{background:var(--diagram-bg);padding:24px;border-radius:12px;color:var(--diagram-ink);border:1px solid var(--diagram-line)}
+.diagram figcaption,.diagram .step,.diagram .step .n,.diagram .step b,.diagram .step.is-key b,.diagram .step span.d,.diagram .diagram-note,.diagram .device h5,.diagram .device p,.diagram .chip{color:var(--diagram-ink)}
+.diagram figcaption,.diagram .step,.diagram .device,.diagram .chip{border-color:var(--diagram-line)}
+.diagram .diagram-note{border-left-color:var(--diagram-line)}.diagram .step:not(:last-child)::after{color:var(--diagram-ink)}.diagram .chip{background:transparent}
+@media(max-width:640px){.diagram,.detail-section .diagram{padding:18px 16px}}
+
+/* Film workflow uses the same muted pink palette as the other project diagrams. */
+.craft .flow,.film-case .flow{grid-template-columns:repeat(5,minmax(0,1fr));gap:18px;padding:24px;border:1px solid var(--diagram-line);border-radius:12px;background:var(--diagram-bg);color:var(--diagram-ink)}
+.craft .flow div,.film-case .flow div{min-width:0;padding:14px 0 0;border-right:0;border-top:1px solid var(--diagram-line)}
+.craft .flow span,.craft .flow b,.film-case .flow span,.film-case .flow b{color:var(--diagram-ink)}
+@media(max-width:640px){.craft .flow,.film-case .flow{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 16px;padding:18px 16px}}

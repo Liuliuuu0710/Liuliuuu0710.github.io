@@ -1,0 +1,30 @@
+/* Motion is finite, purposeful, and respects the visitor's motion preference. */
+:root{--motion-ease:cubic-bezier(.22,.75,.25,1);--motion-spring:cubic-bezier(.2,.9,.3,1.15)}
+@media(prefers-reduced-motion:no-preference){
+ .js .reveal.in{transition:opacity .55s var(--motion-ease),transform .55s var(--motion-ease)}
+ .case-detail-link>span{display:inline-block;transition:transform .23s var(--motion-ease)}
+ .case-detail-link:hover>span,.case-detail-link:focus-visible>span{transform:translate(3px,-3px)}
+ .project-logo-slot{transition:transform .3s var(--motion-spring),box-shadow .3s ease}
+ .project-heading>a:hover .project-logo-slot,.project-heading>a:focus-visible .project-logo-slot{transform:translateY(-2px) rotate(-2deg);box-shadow:0 5px 12px -7px var(--brand-pink)}
+ .filters button,.toggle,.lang-switch{transition:background-color .2s ease,border-color .2s ease,color .2s ease,transform .18s var(--motion-spring)}
+ .filters button:active,.toggle:active,.lang-switch:active{transform:scale(.96)}
+ .human-side{text-decoration:none;background-image:linear-gradient(var(--brand-pink),var(--brand-pink));background-size:100% 2px;background-position:0 100%;background-repeat:no-repeat}
+ .chapter-nav a{transition:color .2s ease}.chapter-nav a:before{transition:background-color .2s ease,transform .25s var(--motion-spring)}
+ .chapter-nav a[aria-current]:before{transform:scale(1.2)}
+}
+@media(prefers-reduced-motion:reduce){
+ *,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+ .js .reveal{opacity:1;transform:none}
+}
+@media print{.js .reveal{opacity:1;transform:none}}
+
+/* Cindy's two language versions share the same interaction rhythm. */
+@media(prefers-reduced-motion:no-preference){
+ [data-case=cindy] .workstream-extra summary,[data-case=cindy] .supporting-work summary{transition:color .2s ease}
+ [data-case=cindy] details[open]>summary{color:var(--accent-text)}
+ [data-case=cindy] .workstream-jump a,[data-case=cindy] .work-case-links a,[data-case=cindy] .evidence-links a,[data-case=cindy] .report-download a{background-image:linear-gradient(var(--brand-pink),var(--brand-pink));background-position:0 100%;background-size:0 1px;background-repeat:no-repeat;transition:background-size .24s var(--motion-ease),color .2s ease}
+ [data-case=cindy] .workstream-jump a:hover,[data-case=cindy] .workstream-jump a:focus-visible,[data-case=cindy] .work-case-links a:hover,[data-case=cindy] .work-case-links a:focus-visible,[data-case=cindy] .evidence-links a:hover,[data-case=cindy] .evidence-links a:focus-visible,[data-case=cindy] .report-download a:hover,[data-case=cindy] .report-download a:focus-visible{background-size:100% 1px;text-decoration:none}
+ [data-case=cindy] .project-pager b{display:block;transition:transform .24s var(--motion-ease),color .2s ease}
+ [data-case=cindy] .project-pager a:hover b,[data-case=cindy] .project-pager a:focus-visible b{transform:translateX(-3px);color:var(--accent-text)}
+ [data-case=cindy] .project-pager a:last-child:hover b,[data-case=cindy] .project-pager a:last-child:focus-visible b{transform:translateX(3px)}
+}

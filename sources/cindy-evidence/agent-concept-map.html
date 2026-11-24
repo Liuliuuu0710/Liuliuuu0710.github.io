@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 术语 × Cindy 实物对照图</title>
+<style>
+  :root{
+    --paper:#f6f3ec; --card:#fffdf7; --ink:#2b2b26; --muted:#7a766a;
+    --line:#ddd5c3; --green:#3e7d4e; --violet:#7a5fb5; --amber:#b07d2b; --grey:#8a8578;
+    --blue:#4a6fa5; --teal:#3d8a80; --orange:#b06a3b; --purple:#7a5fb5;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif; padding:22px 16px 60px;}
+  .wrap{max-width:1180px; margin:0 auto;}
+  header h1{font-size:26px; letter-spacing:.5px;}
+  header h1 .x{color:var(--green);}
+  header p{color:var(--muted); font-size:13.5px; margin-top:6px; line-height:1.6;}
+  .flow{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:18px 0 6px; font-size:13px;}
+  .flow .step{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px 12px;}
+  .flow .step b{display:block; font-size:11px; color:var(--muted); letter-spacing:1px;}
+  .flow .arr{color:var(--muted); font-size:16px;}
+  .legend{display:flex; flex-wrap:wrap; gap:14px; font-size:12.5px; color:var(--muted); margin:10px 0 4px;}
+  .dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle;}
+  .d-real{background:var(--green);} .d-rename{background:var(--violet);} .d-part{background:var(--amber);} .d-none{background:var(--grey);}
+  .filters{margin:12px 0 18px; display:flex; gap:8px; flex-wrap:wrap;}
+  .filters button{border:1px solid var(--line); background:var(--card); border-radius:999px; padding:6px 14px; font-size:13px; cursor:pointer; color:var(--ink);}
+  .filters button.on{background:var(--ink); color:#fff; border-color:var(--ink);}
+  .layout{display:grid; grid-template-columns:1fr 340px; gap:18px; align-items:start;}
+  @media (max-width:900px){ .layout{grid-template-columns:1fr;} }
+  .cols{display:grid; grid-template-columns:1fr 1.35fr 1fr; gap:14px;}
+  @media (max-width:700px){ .cols{grid-template-columns:1fr;} }
+  .sec{margin-bottom:14px;}
+  .sec h2{font-size:13px; letter-spacing:1px; color:var(--muted); margin-bottom:8px; border-left:4px solid var(--line); padding-left:8px;}
+  .sec.blue h2{border-color:var(--blue);} .sec.teal h2{border-color:var(--teal);}
+  .sec.green h2{border-color:var(--green);} .sec.orange h2{border-color:var(--orange);} .sec.purple h2{border-color:var(--purple);}
+  .chip{display:block; width:100%; text-align:left; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:8px; cursor:pointer; transition:all .15s;}
+  .chip:hover{transform:translateY(-1px); box-shadow:0 3px 10px rgba(60,50,20,.08);}
+  .chip.sel{border-color:var(--ink); box-shadow:0 0 0 1.5px var(--ink);}
+  .chip .t{font-size:14.5px; font-weight:600;}
+  .chip .s{font-size:12px; color:var(--muted); margin-top:2px; line-height:1.5;}
+  .chip.dim{opacity:.35;}
+  .bigbox{background:#eef3ec; border:1.5px solid #b9cbb2; border-radius:16px; padding:14px;}
+  .bigbox .ttl{text-align:center; font-size:19px; font-weight:700; margin:4px 0 2px;}
+  .bigbox .sub{text-align:center; font-size:12px; color:var(--muted); margin-bottom:10px;}
+  .loop{display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin:10px 0; font-size:12.5px;}
+  .loop span{background:#fff; border:1px solid var(--line); border-radius:8px; padding:5px 9px;}
+  .loop .arr{border:none; background:none; padding:5px 0; color:var(--muted);}
+  .strip{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:6px;}
+  @media (max-width:700px){ .strip{grid-template-columns:1fr 1fr;} }
+  .detail{position:sticky; top:16px; background:var(--card); border:1.5px solid var(--ink); border-radius:16px; padding:18px;}
+  .detail .cat{font-size:11.5px; color:var(--muted); letter-spacing:1px;}
+  .detail h3{font-size:20px; margin:4px 0 2px;}
+  .detail .en{font-size:12.5px; color:var(--muted); margin-bottom:10px;}
+  .detail .row{margin-bottom:11px; font-size:13.5px; line-height:1.65;}
+  .detail .row b{display:block; font-size:11.5px; color:var(--muted); letter-spacing:1px; margin-bottom:2px;}
+  .detail code{font-family:ui-monospace,Menlo,monospace; font-size:11.5px; background:#f1ecdf; border-radius:6px; padding:2px 6px; word-break:break-all; display:inline-block; line-height:1.7;}
+  .detail .hook{background:#fdf6e3; border:1px dashed #d9b95c; border-radius:10px; padding:9px 11px; font-size:13px; line-height:1.6;}
+  .badge{display:inline-block; font-size:11px; border-radius:999px; padding:2px 9px; color:#fff; margin-left:6px; vertical-align:middle;}
+  .b-real{background:var(--green);} .b-rename{background:var(--violet);} .b-part{background:var(--amber);} .b-none{background:var(--grey);}
+  footer{color:var(--muted); font-size:12px; margin-top:26px; line-height:1.7;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Agent 术语关系图 <span class="x">×</span> Cindy 实物对照</h1>
+  <p>左边是那张《Agent 术语关系速查图》的概念，点任意一块，右边看它在 Cindy 里的真身：在哪个界面、叫什么名、背后是哪一层代码。依据：makecindy/cindy 主仓代码（2026-11-12 拉取）+ 官方 product-rules 文档 + 设置页中文文案。不硬凑——Cindy 没有的、改了名的、在闭源后端的，都如实标出。</p>
+</header>
+
+<div class="flow">
+  <div class="step"><b>USER / TASK / GOAL</b>侧栏「新建任务」里提出目标与约束</div><span class="arr">→</span>
+  <div class="step"><b>HOST APPLICATION</b>Cindy 客户端（桌面 Electron / 移动端 / 无头版）</div><span class="arr">→</span>
+  <div class="step"><b>AGENT → OUTPUT</b>对话里的「生成文件卡」、Diff 面板、图表与富 HTML</div>
+</div>
+
+<div class="legend">
+  <span><span class="dot d-real"></span>有实物：界面里能直接摸到</span>
+  <span><span class="dot d-rename"></span>改了名：概念在，产品里换了叫法</span>
+  <span><span class="dot d-part"></span>部分实现 / 形态不同</span>
+  <span><span class="dot d-none"></span>没有用户界面 / 在内部或后端</span>
+</div>
+<div class="filters">
+  <button class="on" data-f="all">全部</button>
+  <button data-f="real">有实物</button>
+  <button data-f="rename">改了名</button>
+  <button data-f="part">部分实现</button>
+  <button data-f="none">没有 / 内部</button>
+</div>
+
+<div class="layout">
+<div>
+  <div class="cols">
+    <div>
+      <div class="sec blue"><h2>01 · 上下文与指令</h2><div data-slot="ctx"></div></div>
+      <div class="sec teal"><h2>02 · 知识与记忆</h2><div data-slot="know"></div></div>
+      <div class="sec blue"><h2>05 · 开发与扩展</h2><div data-slot="dev"></div></div>
+    </div>
+    <div>
+      <div class="bigbox">
+        <div style="text-align:center; font-size:12px; letter-spacing:2px; color:var(--green); font-weight:700;">HARNESS · 运行控制系统 = Cindy 本体</div>
+        <div class="ttl">Agent 智能体（任务）</div>
+        <div class="sub">Cindy 的结构：一个「任务（Session）」里装着一套可切换的引擎</div>
+        <div data-slot="center"></div>
+        <div class="loop"><span>观察 Observe</span><span class="arr">→</span><span>推理 / 规划</span><span class="arr">→</span><span>行动 Act</span><span class="arr">→</span><span>反馈 Feedback</span><span class="arr">↺</span></div>
+        <div data-slot="tool"></div>
+      </div>
+    </div>
+    <div>
+      <div class="sec purple"><h2>03 · Skill 可复用技能</h2><div data-slot="skill"></div></div>
+      <div class="sec purple"><h2>04 · 编排与多智能体</h2><div data-slot="orch"></div></div>
+      <div class="sec orange"><h2>07 · 环境与权限</h2><div data-slot="env"></div></div>
+    </div>
+  </div>
+  <div class="sec orange"><h2>06 · MCP · 模型上下文协议（怎么接）</h2><div data-slot="mcp"></div></div>
+  <h2 style="font-size:13px; letter-spacing:1px; color:var(--muted); margin:14px 0 8px;">贯穿整个系统的工程能力</h2>
+  <div class="strip">
+    <div data-slot="eng1"></div><div data-slot="eng2"></div><div data-slot="eng3"></div><div data-slot="eng4"></div>
+  </div>
+</div>
+
+<aside class="detail" id="detail"></aside>
+</div>
+
+<footer>
+  读法建议：先按颜色记「四个家族」——蓝=资料与知识、绿=决策与执行、橙=工具与连接、紫=流程与协作；再记每块的 Cindy 真身长在哪。最值得亲手点开验证的三个：设置 → 个性化 → 上下文压缩（Compaction 的滑杆）、设置 → 个性化 → 记忆（三个记忆开关的互斥）、新建任务时的权限选择器（四档）。<br>
+  代码路径均相对 makecindy/cindy 仓库根目录；状态判断基于 2026-11-12 的主仓快照，Cindy 迭代很快（约 1–2 天一版），个别界面名称后续可能变化。
+</footer>
+</div>
+
+<script>
+const DATA = [
+ // ---- 01 上下文与指令 ----
+ {id:"prompt", slot:"ctx", cat:"01 · 上下文与指令", zh:"提示词 / 指令", en:"Prompt / Instructions", st:"real",
+  def:"告诉模型：目标、规则和眼前的事。分 System / Developer / User 三层。",
+  ui:"新建任务输入框（User 层）；设置里的「用户提示词」区（UserPromptSection）；伙伴的身份文件 SOUL.md（System 层的人格版）",
+  fn:"系统提示由 Cindy 在每个任务启动时拼装：基础指令 + 记忆索引 + 技能摘要 + 项目规则。用户能摸到的就是输入框和设置里的自定义提示词。",
+  code:"apps/desktop/src/renderer/components/settings/UserPromptSection.tsx；packages/maker-core/src/memory/system-prompt.md",
+  hook:"你在 Cindy 里写的每一句任务描述，就是 User 层 Prompt；SOUL.md 则是给「伙伴」写的人格 System Prompt。"},
+ {id:"ctxwindow", slot:"ctx", cat:"01 · 上下文与指令", zh:"上下文 / 上下文窗口", en:"Context / Context Window", st:"real",
+  def:"模型当前能看见的全部信息，有容量上限，含历史消息、工具结果。",
+  ui:"对话区本身就是上下文窗口的可视化；窗口快满时触发自动压缩（见 Compaction）",
+  fn:"每个引擎（Claude Code / Codex / Pi）各自维护窗口，Cindy 在会话层统一转发事件流；切换引擎时是「交接或重建上下文」，不是三家状态完全一致。",
+  code:"packages/maker-core/src/session.ts；packages/maker-core/src/agents/claude-code/（translator-context-window 等）",
+  hook:"切 harness ≠ 无缝续杯：上下文要重建，这就是切换偶尔会「失忆一点」的原因。"},
+ {id:"compaction", slot:"ctx", cat:"01 · 上下文与指令", zh:"上下文压缩", en:"Context Engineering · Compaction", st:"real",
+  def:"上下文快满时把旧内容压缩成摘要，腾出窗口继续干活。",
+  ui:"设置 → 个性化 → 上下文压缩：「压缩触发阈值」滑杆 50%–95%，文案「上下文占用达到该百分比时自动压缩」",
+  fn:"Claude Code 与 Pi 各存一份阈值；对话里也能手动压缩。压缩时被丢弃内容的要点会沉淀成 digest 类型记忆，之后可被检索回来——压缩不是简单删掉。",
+  code:"apps/desktop/src/renderer/components/settings/CompactionSection.tsx；ModelCompactionSettings.tsx；packages/maker-core/src/memory/（digest 类型）",
+  hook:"一个滑杆就是 Compaction 本人：调低=更早压缩留余量，调高=单轮塞得更满。这是全图最好记的一块。"},
+ // ---- 02 知识与记忆 ----
+ {id:"rag", slot:"know", cat:"02 · 知识与记忆", zh:"检索增强生成", en:"RAG · Retrieval-Augmented Generation", st:"part",
+  def:"先从外部资料检索，再把资料塞进上下文生成回答。经典链路：分块→向量化→向量库→检索/重排。",
+  ui:"没有一个叫 RAG 的功能页。最接近的两处：聊天附件/资料库的向量化（设置里有 ChatEmbeddingCell）、图片资料库的本地数据库索引",
+  fn:"Cindy 的知识召回主力不是向量 RAG，而是「文件式记忆 + SQLite FTS5 全文检索」（中文用 LIKE 兜底保证召回）；向量只在 embedding-client 这一层存在，走 XD Gateway 的 /v1/embeddings（如 text-embedding-3-small，1536 维）。",
+  code:"packages/embedding-client/（catalog.ts / client.ts）；packages/maker-core/src/memory/fts.ts",
+  hook:"图里 RAG 是向量派；Cindy 的记忆是文件派 + 全文检索派。考试按图答，面试聊 Cindy 要说清这个区别。"},
+ {id:"memory", slot:"know", cat:"02 · 知识与记忆", zh:"记忆", en:"Memory（短期状态 / 长期存储）", st:"real",
+  def:"保存可复用信息：偏好、事实、任务经验。纠正一次，下次自动做对。",
+  ui:"设置 → 个性化 → 记忆：三个开关——「Cindy 记忆」、Claude Code 记忆、Codex 记忆（Pi 的记忆写入 Cindy 记忆）",
+  fn:"关键规则：Cindy 记忆与各引擎原生记忆互斥，开 Cindy 记忆会强制关掉原生。记忆按工作目录分片存：MEMORY.md 索引 + 分片文件，分 user / feedback / project / reference 四类；底层有专门的记忆复核（review）用便宜模型跑。",
+  code:"apps/desktop/src/renderer/components/settings/MemorySection.tsx；packages/maker-core/src/memory/（manager.ts / storage.ts / store.ts / scope-resolver.ts）；packages/lizi-mcps/src/cindy_memoryMcpServer.ts",
+  hook:"「多套 Harness 共用同一份记忆」就是这个面板：记忆长在 Cindy 身上，不长在某个引擎身上。"},
+ // ---- 中心 ----
+ {id:"harness", slot:"center", cat:"中心 · Harness", zh:"运行控制系统", en:"Harness", st:"real",
+  def:"组织模型—工具循环、维护会话状态、落实执行边界的运行系统（Runner / 调度器 / 工具分发）。",
+  ui:"Cindy 本体就是 Harness 层产品：任务中途切换引擎的那个选择器，就是 Harness 的脸。官网把它做成「HARNESS DECK」卡片：Claude Code / Codex / Pi",
+  fn:"三套引擎共用同一份记忆、技能和工具。显式切换在「下一条消息发送时」才生效；失败则保留待切换状态并拦下这次发送。自研引擎在开发中。",
+  code:"packages/maker-core/src/agents/（base-agent.ts + claude-code/ + codex/ + pi/）；apps/desktop/src/renderer/components/settings/HarnessVersionMenuRow.tsx",
+  hook:"别人问 harness 是什么，直接答：Cindy 就是一个 harness——它不产模型，它组织模型干活。"},
+ {id:"agentmodel", slot:"center", cat:"中心 · Agent", zh:"智能体与模型", en:"Agent · Model / LLM", st:"real",
+  def:"模型负责读上下文、推理、生成下一步决策；真正的执行由运行系统完成。",
+  ui:"设置 → 模型供应商（ProvidersSection）：供应商列表、连接状态、订阅用量剩余百分比与重置倒计时；新建任务时选「引擎 + 模型」成套生效",
+  fn:"模型四条供给路线：① 订阅登录（Claude / ChatGPT / SuperGrok / Kimi Code / MiniMax / GitHub Copilot）② 自带 API key ③ Cindy 官方托管额度 ④ 本地模型（Ollama / llama.cpp / LM Studio，Beta）。另有「任务模型自动降级」开关：失败时同模型换来源重试，每任务最多两次。",
+  code:"apps/desktop/src/renderer/components/settings/ProvidersSection.tsx；UnifiedModelList.tsx；SubscriptionAccountsSection.tsx；packages/model-providers/",
+  hook:"模型在 Cindy 里是「可插拔零件」：引擎管怎么干活，模型管用谁的大脑，两个选择是分开的。"},
+ {id:"loop", slot:"center", cat:"中心 · Agent Loop", zh:"智能体循环", en:"Agent Loop · ReAct / Planning / Reflection", st:"real",
+  def:"观察→推理→行动→反馈，持续循环直到完成或停止。常见模式：ReAct 交替、Planning 规划、Reflection 复查。",
+  ui:"对话区里一轮消息的展开过程就是循环本体：思考、工具调用卡、结果回填、再思考。被打断时有「已中断」横幅",
+  fn:"代码里有专门的防失控件：ToolLoopGuard / ToolLoopMonitor 盯死循环，auto-review 在动作执行前自动复查一遍；会话层统一管理 permission / 向用户提问 / 计划评审三种「需要人介入」的时刻。",
+  code:"packages/maker-core/src/session.ts；packages/maker-core/src/agents/shared/（loop-guard.ts / tool-loop-review.ts / auto-review.ts）",
+  hook:"循环不是模型自己转的：是 session.ts 在推着转，旁边还站着一个防死循环的保安（loop-guard）。"},
+ {id:"toolcalling", slot:"tool", cat:"中心 · Tool", zh:"工具调用", en:"Tool Calling · Function Calling", st:"real",
+  def:"模型按 JSON Schema 发起结构化调用请求，运行系统执行后把结果喂回。函数调用是工具调用的一种实现形态。",
+  ui:"对话里的工具调用卡片：能看到它调了什么、参数是什么、结果是什么，随时可以加方向或停掉任务",
+  fn:"Cindy 自研 harness 与三家引擎的工具协议在 translator 层做翻译对齐；工具执行的授权由当前会话的权限档决定（见「权限模式」）。",
+  code:"packages/cindy-tools/；packages/maker-core/src/agents/（各引擎 translator）",
+  hook:"Tool 管「能做什么」，调用卡就是 Tool Calling 的现场直播。"},
+ {id:"tools", slot:"tool", cat:"中心 · Tool", zh:"常见工具", en:"Tools：Web / API / Shell / Browser / 文件", st:"real",
+  def:"执行动作或获取信息的能力接口。",
+  ui:"设置 → 内置工具（BuiltinToolsSection）；电脑操控在 ComputerUseSection；终端在「默认终端 shell」设置",
+  fn:"现成一套：文件读写、终端命令、浏览器操控（可选用真实浏览器 Profile）、电脑操控（Computer Use）、SSH 远程、语音输入；Web 搜索以官方插件形态提供（cindy-web-search）。",
+  code:"packages/browser-control-runtime/；packages/cindy-tools/；apps/desktop/src/renderer/components/settings/BuiltinToolsSection.tsx；ComputerUseSection.tsx",
+  hook:"这一排就是图的右下角那组常见 Tools，Cindy 是全家桶式配齐的。"},
+ {id:"hooks", slot:"tool", cat:"中心 · Harness 边界", zh:"钩子 · 重试 · 停止 · 预算", en:"Hooks · Retry · Stop / Budget", st:"rename",
+  def:"生命周期回调、失败重试、停止条件与预算，决定 Agent 什么时候收手。",
+  ui:"⚠️ 易误读：Cindy 里带 Hook 字样的界面不是生命周期钩子面板。HookConnectionsSection 在 设置 → IM 机器人 页面的 Cindy 官方连接栏里（另在伙伴的渠道页出现），管的是 Telegram / X / 飞书等 IM 渠道绑定（Cindy 官方维护、用户零凭证）；对话里的「Hook 任务卡」= 从 IM 渠道钩进来派的任务。各引擎原生的生命周期 hooks（如 Claude Code 的 hooks）Cindy 没有专门 UI，走引擎自己的配置",
+  fn:"重试的产品化形态是「任务模型自动降级」：连接/超时/过载时先同模型换来源、再换默认模型，不跨引擎、每任务最多两次；用量上限不重试，等额度重置自动继续。停止是任务里的停止按钮（会话层有优雅停止）；预算的脸是每个任务实时显示的真实花费。",
+  code:"apps/desktop/src/renderer/components/settings/ImBotSection.tsx（渲染 HookConnectionsSection）；components/settings/HookConnectionsSection.tsx；packages/maker-core/src/session.ts（graceful stop）",
+  hook:"Cindy 的 Hook = 「把外部 IM 钩进来派活」的钩，不是生命周期回调的钩；Retry/Stop 是真的，藏在降级开关和停止按钮里。"},
+ // ---- 03 Skill ----
+ {id:"skill", slot:"skill", cat:"03 · Skill", zh:"可复用技能", en:"Skill / SOP · SKILL.md + Resources", st:"real",
+  def:"告诉 Agent「这类任务该怎样完成」：流程、判断条件、规范与示例，可指导一个或多个工具。",
+  ui:"SkillHub：发现、安装、发布技能的市场；技能可被点名、或用 /技能名 斜杠命令唤起、或由 Agent 按描述自动召回",
+  fn:"一个技能 = 一个目录 + SKILL.md（frontmatter 必须有 name + description，单文件 ≤64KB），可带参考文件和 scripts/ 脚本。系统自带三个元技能：cindy-skill-creator（写技能）、cindy-plugin-creator（写插件）、learn（把刚干完的活提炼成技能，先给 diff、确认才保存）。",
+  code:"apps/desktop/resources/system-skills/（learn / cindy-skill-creator / cindy-plugin-creator）；apps/desktop/src/renderer/features/skillhub/",
+  hook:"Skill 管「怎么做」：/learn 就是把你的经验一键压成 Skill 的按钮，这是全图离你最近的一块。"},
+ {id:"disclosure", slot:"skill", cat:"03 · Skill", zh:"渐进式披露", en:"Progressive Disclosure", st:"rename",
+  def:"先看摘要、再按需读细节，避免上下文被说明书撑爆。",
+  ui:"产品里没有这个词，但机制无处不在：插件的说明书走 ghost_manual 按需读取，不进技能列表、不常驻上下文",
+  fn:"插件发现就是三段式：ghost_list（看名单）→ ghost_info（看详情）→ ghost_call（真调用）。仓库里有专文 docs/ghost-progressive-discovery.md 讲这套。",
+  code:"docs/ghost-progressive-discovery.md；packages/cindy-tools/src/ghost/",
+  hook:"记住三段式：名单→详情→调用。面试聊「上下文为什么不爆」，答案就是它。"},
+ // ---- 04 编排 ----
+ {id:"orca", slot:"orch", cat:"04 · 编排与多智能体", zh:"编排（Orca）", en:"Orchestration / Workflow", st:"rename",
+  def:"组织步骤、分工和控制权：预设步骤的流程，或由 Agent 动态决定下一步。",
+  ui:"「协同」模式：一个 Lead 会话拆任务、派活、验收、汇总；界面有协同面板和分屏视图（OrcaSplitView），右侧栏有「子任务」标签看每个 Worker 的进度与结果",
+  fn:"官网话术是三段式：PLAN（深度推理出拆解与验收标准）→ EXECUTE（多个 Worker 并行，各配不同引擎×模型）→ REVIEW 质量门（独立审查 diff 与边界情况，Pass 或打回）。注意边界：文档明示「workflow 编排未纳入实现」——现在是 Lead 动态派活，不是固定流水线。",
+  code:"packages/orca-workflow/（orca-bridge-mcp.ts / orca-bridge-prompt.ts）；packages/lizi-mcps/src/orca/（cindy_orca，共 21 个工具）",
+  hook:"Orca = 一群完整会话在打工，不是临时分身。Lead 只动嘴和验收，这是它和普通 subagent 的分界。"},
+ {id:"subagent", slot:"orch", cat:"04 · 编排与多智能体", zh:"多智能体 / 子代理", en:"Multi-agent / Subagent", st:"real",
+  def:"多个智能体分工协作：委派、并行、交接控制权。",
+  ui:"设置里有专门的「Subagent」区（SubagentModelSection），给子代理单独配模型；对话右侧栏「子任务」标签看进度",
+  fn:"Cindy 有两套，别混：① Orca Worker——会话级协作者，有自己的持久会话、界面上看得见；② 原生 subagent——引擎内部的临时子任务执行器（如 Claude Code 的 Agent 工具）。代码里的桥接提示词专门用大段文字警告模型不许拿 Worker 冒充 subagent。",
+  code:"packages/orca-workflow/src/orca-bridge-prompt.ts；apps/desktop/src/renderer/components/settings/SubagentModelSection.tsx",
+  hook:"Worker 是「同事」，subagent 是「影分身」。被问到区别时这一句就够。"},
+ {id:"handoff", slot:"orch", cat:"04 · 编排与多智能体", zh:"交接", en:"Handoff", st:"real",
+  def:"交接控制权，由接手者继续负责。",
+  ui:"三处交接都做成了产品：任务中途换引擎（上下文交接/重建）、手机上「接管这个任务」（跨设备交接）、Orca 里 Worker 把成果作为消息回报给 Lead",
+  fn:"跨设备续接的边界很实在：对话、记忆、技能、共享附件经 Cindy 服务同步，但项目文件留在原电脑上，靠远程桌面/远程文件服务够回去。",
+  code:"packages/device-link/；apps/desktop/src/renderer/features/input-handoff/；packages/remote-file-service/",
+  hook:"Handoff 在 Cindy 里最直观的画面：电脑上没干完的活，掏出手机点「接管这个任务」。"},
+ {id:"a2a", slot:"orch", cat:"04 · 编排与多智能体", zh:"智能体间协议", en:"A2A · Agent2Agent Protocol", st:"part",
+  def:"跨系统 Agent 的发现、任务与消息协作协议。",
+  ui:"没有挂 A2A 牌子的界面。功能等价物是：多个「伙伴」拉进一个群聊分工协作、以及跨设备把任务派给另一台机器上的 Agent",
+  fn:"代码里确有 agent-net 一组包（协议、relay 中继、native 传输），是 Cindy 自家的智能体网络层，不是标准 A2A 协议的产品化实现。伙伴（companions）之间走的是项目文件 + 渠道专线会话的协作方式。",
+  code:"packages/agent-net/；agent-net-protocol/；agent-net-relay/；docs/agent-net-plan.md",
+  hook:"图里 A2A 是「标准协议」，Cindy 是「自家网络」：有等价能力，没贴标准标。"},
+ // ---- 05 开发与扩展 ----
+ {id:"framework", slot:"dev", cat:"05 · 开发与扩展", zh:"框架 / SDK 与无头运行", en:"Framework / SDK", st:"part",
+  def:"组装 Agent 系统的开发框架；框架可提供 Harness 的部分或全部实现。",
+  ui:"普通用户摸不到框架层；能摸到的是「本地 Agent API」和无头版（cindy-headless）：不开界面也能跑 Agent",
+  fn:"Cindy 本身定位就是 harness 层产品，而不是给别人组装用的 SDK；它对外开放的是插件协议与本地 API 这一层。",
+  code:"apps/cindy-headless/；docs/local-agent-api.md；packages/plugin-protocol/",
+  hook:"Framework 这格在 Cindy 身上要倒着理解：它不是框架的使用者，它就是被用的那一层。"},
+ {id:"plugin", slot:"dev", cat:"05 · 开发与扩展", zh:"插件（Ghosts）", en:"Plugin", st:"rename",
+  def:"打包工具、Skills 与配置的扩展单元，边界与内容取决于平台。",
+  ui:"产品里叫 Ghost（幽灵）：左侧导航的插件市场、「我的插件」页、插件详情页（含权限清单）、发布对话框；对话里有「召唤卡」把某个 Ghost 叫进当前任务",
+  fn:"一个 Ghost = ghost.json（身份卡：工具、网络、密钥声明）+ main.js（沙箱内入口），可捆绑最多 4 个 Skill。分发靠 provisioning：all = 默认全员，emails:[] = 市场自选。已装插件静默更新，所以准入审核是唯一的安全门；普通插件默认纯沙箱，凭据由宿主临时注入、不经过插件代码。",
+  code:"apps/desktop/src/renderer/features/plugin/（MyPluginsPage / PluginCatalogBrowser / PluginPublishDialog 等）；packages/plugin-protocol/；docs/dev-rules/plugin-security-and-authoring.md",
+  hook:"Plugin 在 Cindy 里的真名就一个词：Ghost。你写的那两个插件（播客洞察、Rhino Bridge）都是 Ghost。"},
+ // ---- 06 MCP ----
+ {id:"mcp", slot:"mcp", cat:"06 · MCP", zh:"模型上下文协议", en:"MCP · Model Context Protocol", st:"real",
+  def:"标准化连接外部工具、资源与提示模板的协议：Host 内运行 Client，Client 与 Server 建立协议连接，Server 暴露 Tools / Resources / Prompts。",
+  ui:"设置 → 外部工具（分区名「自定义 MCP」）：「添加 MCP 服务器」对话框，填显示名称、传输类型、端点 URL、Bearer token、自定义请求头",
+  fn:"设置页只收远程 HTTP / SSE 型 MCP（Claude 与 Codex 都能调，SSE 仅 Claude），保存后新建/重启的会话生效；还会检测与 Claude Code 本机配置里「疑似重复的 MCP 连接」并让你选保留哪边。Cindy 内置的一大批能力本身就是 MCP 实现的：记忆、日程、Slack、微信、SSH、飞书、文档、Orca 控制面。",
+  code:"apps/desktop/src/renderer/components/settings/McpServersSection.tsx；McpServerDialog.tsx；packages/lizi-mcps/src/（cindy_memory / cindy_scheduler / cindy_slack / cindy_wechat / cindy_ssh / cindy_feishuBot / orca 等）",
+  hook:"全图那句口诀在 Cindy 完整成立：MCP 管「怎么接」，Tool 管「能做什么」，Skill 管「怎么做」。"},
+ // ---- 07 环境与权限 ----
+ {id:"env", slot:"env", cat:"07 · 环境与权限", zh:"环境 / 运行时", en:"Environment / Runtime", st:"real",
+  def:"实际执行环境：本机、容器或云端，负责执行代码、读写文件与产出结果。",
+  ui:"默认在本机跑；设置里有「远端机器」「设备互联」：可以连 SSH 远程服务器跑任务，也能远程桌面回自己的另一台电脑",
+  fn:"桌面端是 Electron，移动端是 Expo/RN，另有 host 与 headless 形态。不绑项目的任务也有自动分配的工作目录（按日期/session 分文件夹）。",
+  code:"apps/desktop/；apps/mobile/；apps/host/；packages/maker-remote-ssh/；packages/device-link/",
+  hook:"Environment 在 Cindy 里就是「这活在哪台机器上跑」——本机、远端、还是你另一台电脑。"},
+ {id:"sandbox", slot:"env", cat:"07 · 环境与权限", zh:"沙箱与隔离", en:"Sandbox", st:"real",
+  def:"隔离执行环境，限制资源与访问范围。",
+  ui:"两处看得见：插件详情页会写明它在「插件沙箱」中打开主视图、不会因此获得文件/网络/凭证权限；代码任务可用 Git worktree 隔离工作区（任务上有 worktree 徽章）",
+  fn:"普通 Ghost 默认纯沙箱运行；唯一能「出沙箱」的是它捆绑的 Skill（由主 Agent 以用户权限执行），所以安装确认时每个捆绑 Skill 都被置顶逐条列出。合格的本地 Git 任务还能用检查点（checkpoints）回滚。",
+  code:"docs/dev-rules/plugin-security-and-authoring.md；apps/desktop/src/renderer/components/settings/WorktreeRecycleCard.tsx；apps/desktop/src/main/（filePathPolicy）",
+  hook:"沙箱主要关的是插件；隔离主要靠 worktree。捆绑 Skill 是沙箱唯一的门，所以审核最严。"},
+ {id:"permission", slot:"env", cat:"07 · 环境与权限", zh:"权限模式", en:"Auth / Permissions", st:"real",
+  def:"身份、授权与权限：动作在哪里执行、允许访问什么。",
+  ui:"新建任务时的权限选择器，每个引擎四档：默认权限 / 允许编辑（仅 Claude Code）/ 自动审批 / 完全访问；设置里有「新建任务默认权限」；伙伴与 Orca Worker 用三档：Ask / Auto / 完全访问",
+  fn:"执行中需要确认的动作会弹出具体问题——「允许运行这条命令？」「允许修改文件？」「允许浏览器执行这一步？」「允许使用插件『X』？」——手机上也能批准。注意：Orca Worker 的创建默认是完全访问，建的时候可以改。",
+  code:"apps/desktop/src/renderer/components/settings/NewChatDefaultPermissionSection.tsx；packages/lizi-mcps/src/tool-call-authority.ts；packages/maker-core/src/session.ts（InteractionResolver）",
+  hook:"自动化程度 = 权限档位。你敢给到哪一档，Agent 就能自己跑多远。"},
+ // ---- 工程能力 ----
+ {id:"hitl", slot:"eng1", cat:"工程能力 · 护栏", zh:"护栏 / 人在环路", en:"Guardrails / HITL", st:"real",
+  def:"自动检查输入、输出与工具行为；需要时由人审核（Human-in-the-loop）；含权限控制与注入防护。",
+  ui:"审批弹窗、向你提问的气泡（AskUserQuestionBubble）、计划评审，都是 HITL 的脸；飞书/Telegram 里别人触发的破坏性动作（删除、shell）会进逐轮审批链",
+  fn:"会话层把三种「停下来问人」的时刻统一成一个 InteractionResolver：权限确认 / 向用户提问 / 计划评审。另有 auto-review 在动作前自动复查。陌生私聊伙伴已收紧为只回固定拒绝。",
+  code:"packages/maker-core/src/session.ts；agents/shared/auto-review.ts；apps/desktop/src/renderer/components/chat/AskUserQuestionBubble.tsx；LocalAgentConfirmationHost.tsx",
+  hook:"HITL 在 Cindy 里不是理念，是弹窗：每个危险动作都会停下来，等你点头。"},
+ {id:"session", slot:"eng2", cat:"工程能力 · 会话", zh:"会话与状态", en:"Session / State", st:"rename",
+  def:"Session/Thread 组织会话与历史；Run/Turn 是一次运行/一轮交互；Checkpoint 是状态快照，可恢复续跑。",
+  ui:"Cindy 的叫法：条目叫「任务（Session）」、过程叫「对话（Chat）」、最小单元叫「消息（Message）」；左侧任务列表就是 Session 列表，可并行、重命名、分享、导入（设置 → 任务导入）",
+  fn:"任务可跨设备续接；被中断的轮次有横幅提示并可从失败处手动续跑，不重放旧调度。代码任务有 checkpoints 可回滚，Pi 侧有会话树导航（fork/rewind）。",
+  code:"docs/product-rules/task-and-conversation-naming.md；packages/maker-core/src/session.ts；apps/desktop/src/renderer/components/settings/SessionImportSection.tsx",
+  hook:"背名词时直接换算：Session=任务，Chat=对话，Turn=一轮折叠成的一条 AI 消息。"},
+ {id:"observability", slot:"eng3", cat:"工程能力 · 可观测", zh:"可观测性", en:"Observability / Tracing", st:"real",
+  def:"Trace/Span 记录完整执行轨迹；Logs/Metrics 记录日志与指标：关注系统做了什么、耗时、Token 与成本。",
+  ui:"每个任务实时显示真实花费，对话里可跟随每一次工具调用与结果；设置里有「用量和计费」「用量指示器」「Agent 资源占用」；供应商用量卡显示剩余百分比与重置倒计时",
+  fn:"客户端有性能追踪与资源占用面板、日志支持（日志上传带脱敏）；官方构建含 TapDB 用量统计，可在 设置 → 关于 → Usage statistics 关掉（默认开，未登录本地模式不上报）。Enterprise 档才有完整审计日志。",
+  code:"apps/desktop/src/renderer/components/performance-trace/；resource-usage/；components/settings/ChipMetricsSection.tsx；AgentResourceSection.tsx；docs/client-log-upload-implementation-plan.md",
+  hook:"可观测在 Cindy 里最日常的形态：对话顶上那行实时跳动的花费数字。"},
+ {id:"evals", slot:"eng4", cat:"工程能力 · 评估", zh:"评估与基准", en:"Evals / Benchmark", st:"none",
+  def:"评估任务结果与过程，定位失败模式：测试集 + 评分器，回归验证改动后是否退步。",
+  ui:"客户端里没有 Evals 界面——这是全图在 Cindy 里唯一找不到用户入口的一块",
+  fn:"仓库里只有内部材料：docs/benchmarks/ 按日期归档的内部基准（浏览器任务、远程 Agent、任务切换等）和 docs/acceptance/ 验收文档。用户能摸到的最接近物是 Orca 的 Review 质量门（独立审查 = 人肉版评分器）和 SkillHub/插件市场的审核与安全扫描（发布时有 ScanResultDialog、ReviewVerdictDialog）。",
+  code:"docs/benchmarks/；docs/acceptance/；apps/desktop/src/renderer/features/skillhub/（ScanResultDialog / ReviewVerdictDialog）",
+  hook:"诚实记这一格：Evals 在 Cindy 是「内部功课」，没做成产品功能——这本身就是一条产品洞察。"},
+ {id:"automation", slot:"eng2", cat:"工程能力 · 异步", zh:"异步 / 后台与自动化", en:"Async / Background · Automations", st:"rename",
+  def:"异步与后台执行：任务在后台跑，完成后通知。",
+  ui:"产品名叫「自动化」：自动化页面建周期例程；右侧栏有「后台任务」标签跟踪进度与输出；插件也有自己的后台任务区",
+  fn:"自动化到点在你的电脑上跑，绑定原任务——触发时恢复那个任务的历史与工作目录，跑完保持激活，结果经已连接的聊天渠道交回。归档目标任务不会自动停掉它的自动化，归档前会弹窗提醒。",
+  code:"apps/desktop/src/renderer/features/scheduler/SchedulerPage.tsx；packages/maker-scheduler/；packages/lizi-mcps/src/cindy_schedulerMcpServer.ts",
+  hook:"Async 在 Cindy 的产品名是「自动化」+「后台任务」两个入口：一个管定时，一个管盯进度。"}
+];
+
+const ST = {real:["有实物","b-real"], rename:["改了名","b-rename"], part:["部分实现","b-part"], none:["没有 / 内部","b-none"]};
+const slots = {};
+document.querySelectorAll("[data-slot]").forEach(el=>slots[el.dataset.slot]=el);
+DATA.forEach(d=>{
+  const b=document.createElement("button");
+  b.className="chip"; b.dataset.st=d.st; b.dataset.id=d.id;
+  b.innerHTML = `<span class="t"><span class="dot d-${d.st}"></span>${d.zh}</span><div class="s">${d.en}</div>`;
+  b.onclick=()=>select(d.id);
+  slots[d.slot].appendChild(b);
+});
+let cur=null;
+function select(id){
+  cur=id;
+  document.querySelectorAll(".chip").forEach(c=>c.classList.toggle("sel", c.dataset.id===id));
+  const d=DATA.find(x=>x.id===id);
+  document.getElementById("detail").innerHTML =
+    `<div class="cat">${d.cat}</div>
+     <h3>${d.zh}<span class="badge ${ST[d.st][1]}">${ST[d.st][0]}</span></h3>
+     <div class="en">${d.en}</div>
+     <div class="row"><b>概念是什么</b>${d.def}</div>
+     <div class="row"><b>Cindy 里在哪 / 叫什么</b>${d.ui}</div>
+     <div class="row"><b>它怎么工作</b>${d.fn}</div>
+     <div class="row"><b>代码依据</b><code>${d.code}</code></div>
+     <div class="hook">🧠 记忆钩子：${d.hook}</div>`;
+}
+document.querySelectorAll(".filters button").forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll(".filters button").forEach(x=>x.classList.remove("on"));
+    btn.classList.add("on");
+    const f=btn.dataset.f;
+    document.querySelectorAll(".chip").forEach(c=>c.classList.toggle("dim", f!=="all" && c.dataset.st!==f));
+  };
+});
+select("harness");
+</script>
+</body>
+</html>

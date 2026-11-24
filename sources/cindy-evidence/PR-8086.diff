@@ -1,0 +1,801 @@
+diff --git a/apps/mobile/app/sessions/[sessionId].tsx b/apps/mobile/app/sessions/[sessionId].tsx
+@@ -10529,7 +10529,7 @@ function SessionScreenContent({ beforeSessionSwitchRef, newSessionActionRef }: S
+                   accessibilityHint={composerSendUnavailableReason ?? undefined}
+                   disabled={!canUseComposer}
+                   icon={<Image color={colors.textPrimary} size={iconSize.lg} strokeWidth={iconStroke.regular} />}
+-                  label={t('session.common.photo')}
++                  label={t('session.common.photosAndVideos')}
+                   onPress={() => void addLocalImageAttachments('library')}
+                   dismissBeforePress
+                   testID="session.contextSheetPhotoRow"
+
+diff --git a/apps/mobile/app/sessions/new.tsx b/apps/mobile/app/sessions/new.tsx
+@@ -5764,7 +5764,7 @@ function NewRemoteSessionContent({ creatingRef }: { creatingRef: { current: bool
+               <ContextSheetRow
+                 disabled={creating}
+                 icon={<Image color={colors.textPrimary} size={iconSize.lg} strokeWidth={iconStroke.regular} />}
+-                label={t('session.common.photo')}
++                label={t('session.common.photosAndVideos')}
+                 onPress={() => void addLocalImageAttachments('library')}
+                 dismissBeforePress
+                   testID="newSession.contextSheetPhotoRow"
+
+diff --git a/apps/mobile/modules/cindy-photo-picker/ios/CindyPhotoPickerModule.swift b/apps/mobile/modules/cindy-photo-picker/ios/CindyPhotoPickerModule.swift
+@@ -17,6 +17,9 @@ public final class CindyPhotoPickerModule: Module {
+     AsyncFunction("pick") { (limit: Int, promise: Promise) in
+       self.present(limit: limit, promise: promise)
+     }.runOnQueue(.main)
++    AsyncFunction("pickMedia") { (limit: Int, promise: Promise) in
++      self.present(limit: limit, includeVideos: true, promise: promise)
++    }.runOnQueue(.main)
+     AsyncFunction("load") { (id: String, promise: Promise) in
+       self.load(id: id, promise: promise)
+     }.runOnQueue(.main)
+@@ -40,7 +43,7 @@ public final class CindyPhotoPickerModule: Module {
+     }
+   }
+ 
+-  private func present(limit: Int, promise: Promise) {
++  private func present(limit: Int, includeVideos: Bool = false, promise: Promise) {
+     guard picker == nil else {
+       promise.reject("ERR_PHOTO_PICKER_BUSY", "Photo picker is already open.")
+       return
+@@ -50,7 +53,7 @@ public final class CindyPhotoPickerModule: Module {
+       return
+     }
+     var configuration = PHPickerConfiguration(photoLibrary: .shared())
+-    configuration.filter = .images
++    configuration.filter = includeVideos ? .any(of: [.images, .videos]) : .images
+     configuration.selection = .ordered
+     configuration.selectionLimit = max(1, limit)
+     configuration.preferredAssetRepresentationMode = .current
+@@ -60,15 +63,17 @@ public final class CindyPhotoPickerModule: Module {
+       let selected = results.enumerated().map { index, result -> [String: Any] in
+         let id = UUID().uuidString
+         self.selections[id] = result.itemProvider
++        let isVideo = self.representationType(result.itemProvider) == .movie
+         var value: [String: Any] = [
+           "id": id,
+           "name": result.itemProvider.suggestedName ?? "photo-\(index + 1)",
+-          "previewUri": ""
++          "previewUri": "",
++          "mediaType": isVideo ? "video" : "image"
+         ]
+         // Read only a small LOCAL thumbnail. Never wait for an original or ask
+         // for broader library permission just to preview a selected photo.
+         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+-        if (status == .authorized || status == .limited), let assetID = result.assetIdentifier,
++        if !isVideo, (status == .authorized || status == .limited), let assetID = result.assetIdentifier,
+            let asset = PHAsset.fetchAssets(withLocalIdentifiers: [assetID], options: nil).firstObject {
+           value["width"] = asset.pixelWidth
+           value["height"] = asset.pixelHeight
+@@ -105,6 +110,12 @@ public final class CindyPhotoPickerModule: Module {
+     picker.presentationController?.delegate = delegate
+   }
+ 
++  // Live Photos may advertise both types; keep their existing still-image path.
++  private func representationType(_ provider: NSItemProvider) -> UTType {
++    if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) { return .image }
++    return .movie
++  }
++
+   private func load(id: String, promise: Promise) {
+     guard let provider = selections[id] else {
+       promise.reject("ERR_PHOTO_SELECTION_RELEASED", "Photo selection is no longer available.")
+@@ -118,7 +129,8 @@ public final class CindyPhotoPickerModule: Module {
+     loads[id] = load
+     // NSItemProvider preserves the picker grant even for a photo outside the
+     // limited library. This also keeps edits, GIFs and the current representation.
+-    load.progress = provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { [weak self] url, error in
++    let representation = representationType(provider)
++    load.progress = provider.loadFileRepresentation(forTypeIdentifier: representation.identifier) { [weak self] url, error in
+       var copy: URL?
+       var failure = error
+       if let url, failure == nil {
+@@ -162,7 +174,7 @@ public final class CindyPhotoPickerModule: Module {
+         ]
+         // Read dimensions without decoding full pixels. Limited-library photos
+         // have no PHAsset metadata, and edits can change the original dimensions.
+-        if let source = CGImageSourceCreateWithURL(copied as CFURL, nil),
++        if representation == .image, let source = CGImageSourceCreateWithURL(copied as CFURL, nil),
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let width = properties[kCGImagePropertyPixelWidth] as? Int,
+            let height = properties[kCGImagePropertyPixelHeight] as? Int {
+
+diff --git a/apps/mobile/src/__tests__/BotGroupChatScreen.test.tsx b/apps/mobile/src/__tests__/BotGroupChatScreen.test.tsx
+@@ -1013,7 +1013,9 @@ describe('group attachments', () => {
+     for (const row of ['botGroup.contextSheetPhotos', 'botGroup.contextSheetPhotoRow', 'botGroup.contextSheetCameraRow', 'botGroup.contextSheetFileRow']) {
+       expect(byId(row)).not.toBeNull();
+     }
+-    expect(node.textContent).toContain('session.common.photo');
++    expect(node.textContent).toContain('session.common.photosAndVideos');
++    await click('botGroup.contextSheetPhotoRow');
++    expect(h.local.addImages).toHaveBeenLastCalledWith('library');
+     await click('botGroup.contextSheetCameraRow');
+     expect(h.local.addImages).toHaveBeenLastCalledWith('camera');
+     await click('botGroup.contextSheetFileRow');
+
+diff --git a/apps/mobile/src/__tests__/deferredPhotoLibrary.test.ts b/apps/mobile/src/__tests__/deferredPhotoLibrary.test.ts
+@@ -7,7 +7,7 @@ import type { RemoteSerializedAttachment } from '@/session/types';
+ 
+ const mock = vi.hoisted(() => ({
+   available: true,
+-  native: { pick: vi.fn(), load: vi.fn(), cancel: vi.fn(), release: vi.fn() },
++  native: { pick: vi.fn(), pickMedia: undefined as undefined | ReturnType<typeof vi.fn>, load: vi.fn(), cancel: vi.fn(), release: vi.fn() },
+   deleteAsync: vi.fn(),
+ }));
+ vi.mock('expo-modules-core', () => ({ requireOptionalNativeModule: () => mock.available ? mock.native : null }));
+@@ -23,6 +23,7 @@ afterEach(async () => { await i18n.changeLanguage(initialLanguage); });
+ beforeEach(() => {
+   vi.resetAllMocks();
+   mock.available = true;
++  mock.native.pickMedia = mock.native.pick;
+   mock.native.pick.mockResolvedValue([selection('cloud'), selection('local')]);
+   mock.native.load.mockImplementation(async (id: string) => file(id));
+   mock.native.cancel.mockResolvedValue(undefined);
+@@ -48,6 +49,56 @@ function makeController() {
+ }
+ 
+ describe('deferred photo library', () => {
++  // unit: mixed native selections must retain the deferred iCloud lifecycle,
++  // while videos bypass image conversion and keep their file metadata.
++  it('resolves a mixed selection as an image and a video file without converting the video', async () => {
++    mock.native.pick.mockResolvedValue([selection('still'), {
++      id: 'movie', name: 'clip', previewUri: '', mediaType: 'video',
++    }]);
++    mock.native.load.mockImplementation(async (id: string) => id === 'movie'
++      ? { uri: 'file:///cache/clip.mov', fileName: 'clip.mov', mimeType: 'video/quicktime', fileSize: 500 }
++      : file(id));
++    const candidates = (await pickDeferredLibraryPhotos(2))!;
++    expect(candidates.map(item => item.kind)).toEqual(['image', 'file']);
++    expect(mock.native.load).not.toHaveBeenCalled();
++    const { controller, upload } = makeController();
++    controller.enqueue(candidates, { token: 'token' });
++    expect(await controller.waitForIdle()).toEqual({ failedCount: 0 });
++    expect(upload).toHaveBeenCalledWith(expect.objectContaining({
++      name: 'clip.mov', mimeType: 'video/quicktime', size: 500,
++    }), 'file:///cache/clip.mov', expect.anything());
++    expect(mock.native.release).toHaveBeenCalledWith('movie');
++    controller.dispose();
++  });
++
++  it('retains a failed video for retry and cleans a late cancelled movie', async () => {
++    mock.native.pick.mockResolvedValue([{ id: 'movie', name: 'clip', previewUri: '', mediaType: 'video' }]);
++    const movie = { uri: 'file:///cache/clip.mov', fileName: 'clip.mov', mimeType: 'video/quicktime', fileSize: 500 };
++    mock.native.load.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(movie);
++    const { controller, pending, upload } = makeController();
++    controller.enqueue((await pickDeferredLibraryPhotos(1))!, { token: 'token' });
++    expect(await controller.waitForIdle()).toEqual({ failedCount: 1 });
++    expect(mock.native.release).not.toHaveBeenCalled();
++    controller.retry(pending()[0].localId, { token: 'token' });
++    expect(await controller.waitForIdle()).toEqual({ failedCount: 0 });
++    expect(mock.native.release).toHaveBeenCalledExactlyOnceWith('movie');
++    controller.dispose();
++
++    let finish!: (value: typeof movie) => void;
++    mock.native.load.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
++    const cancelled = makeController();
++    cancelled.controller.enqueue((await pickDeferredLibraryPhotos(1))!, { token: 'token' });
++    await flush();
++    cancelled.controller.remove(cancelled.pending()[0].localId);
++    finish(movie);
++    await flush();
++    expect(cancelled.upload).not.toHaveBeenCalled();
++    expect(mock.native.cancel).toHaveBeenCalledWith('movie');
++    expect(mock.deleteAsync).toHaveBeenCalledWith(movie.uri, { idempotent: true });
++    expect(upload).toHaveBeenCalledOnce();
++    cancelled.controller.dispose();
++  });
++
+   it.each([
+     ['zh-CN', '没有读取到可上传的图片。', '附件上传已取消。'],
+     ['en', 'No uploadable image was read.', 'Attachment upload cancelled.'],
+@@ -185,6 +236,9 @@ describe('deferred photo library', () => {
+     mock.available = false;
+     expect(await pickDeferredLibraryPhotos(1)).toBeNull();
+     mock.available = true;
++    mock.native.pickMedia = undefined;
++    expect(await pickDeferredLibraryPhotos(1)).toBeNull();
++    mock.native.pickMedia = mock.native.pick;
+     mock.native.pick.mockResolvedValue([]);
+     expect(await pickDeferredLibraryPhotos(1)).toEqual([]);
+     expect(mock.native.load).not.toHaveBeenCalled();
+
+diff --git a/apps/mobile/src/__tests__/useMobileLocalAttachmentsAbandon.test.tsx b/apps/mobile/src/__tests__/useMobileLocalAttachmentsAbandon.test.tsx
+@@ -12,15 +12,17 @@ import {
+ } from '@/session/useMobileLocalAttachments';
+ 
+ const runtime = vi.hoisted(() => ({
++  platform: 'ios',
+   uploads: [] as Array<{ name: string; resolve: () => void }>,
+   discarded: [] as unknown[],
+   pickPhotos: vi.fn(),
+   pickCamera: vi.fn(),
++  pickLibrary: vi.fn(),
+   pickDocument: vi.fn(),
+   durablePreviewUri: null as string | null,
+ }));
+ 
+-vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
++vi.mock('react-native', () => ({ Platform: { get OS() { return runtime.platform; } } }));
+ vi.mock('react-i18next', async (importOriginal) => {
+   const t = (key: string) => key;
+   return { ...await importOriginal<typeof import('react-i18next')>(), useTranslation: () => ({ t }) };
+@@ -30,6 +32,9 @@ vi.mock('expo-image-picker', () => ({
+   requestMediaLibraryPermissionsAsync: async () => ({ granted: true }),
+   requestCameraPermissionsAsync: async () => ({ granted: true }),
+   launchCameraAsync: runtime.pickCamera,
++  launchImageLibraryAsync: runtime.pickLibrary,
++  VideoExportPreset: { Passthrough: 0 },
++  UIImagePickerPreferredAssetRepresentationMode: { Current: 'current' },
+ }));
+ vi.mock('@/session/deferredPhotoLibrary', () => ({ pickDeferredLibraryPhotos: runtime.pickPhotos }));
+ vi.mock('expo-file-system/legacy', () => ({
+@@ -65,10 +70,12 @@ vi.mock('@/session/mobileAttachmentUpload', () => ({
+ let root: Root;
+ beforeEach(() => {
+   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
++  runtime.platform = 'ios';
+   runtime.uploads = [];
+   runtime.discarded = [];
+   runtime.pickPhotos.mockReset();
+   runtime.pickCamera.mockReset();
++  runtime.pickLibrary.mockReset();
+   runtime.pickDocument.mockReset();
+   runtime.durablePreviewUri = null;
+   root = createRoot(document.createElement('div'));
+@@ -226,13 +233,16 @@ describe('useMobileLocalAttachments abandonment on scope change', () => {
+     expect(runtime.uploads).toHaveLength(0);
+   });
+ 
+-  it.each(['library', 'camera', 'document'] as const)('reports %s input before a slot exists and ignores late selections after scope exit', async source => {
++  it.each(['library', 'camera', 'document', 'fallback-library'] as const)('reports %s input before a slot exists and ignores late selections after scope exit', async source => {
+     const harness = mount('session-a');
+     let finish!: (value: unknown) => void;
+-    const picker = source === 'library' ? runtime.pickPhotos : source === 'camera' ? runtime.pickCamera : runtime.pickDocument;
++    const picker = source === 'library' ? runtime.pickPhotos : source === 'camera' ? runtime.pickCamera
++      : source === 'fallback-library' ? runtime.pickLibrary : runtime.pickDocument;
++    if (source === 'fallback-library') runtime.pickPhotos.mockResolvedValue(null);
+     picker.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+     let picking!: Promise<void>;
+-    await act(async () => { picking = source === 'document' ? harness.first.addDocument() : harness.first.addImages(source); });
++    await act(async () => { picking = source === 'document' ? harness.first.addDocument()
++      : harness.first.addImages(source === 'fallback-library' ? 'library' : source); });
+     expect(harness.first.getPendingUploadCount()).toBe(0);
+     expect(harness.first.hasAttachmentInput()).toBe(true);
+     act(() => harness.first.discardAllPendingUploadsForScopeChange());
+@@ -250,6 +260,81 @@ describe('useMobileLocalAttachments abandonment on scope change', () => {
+     expect(runtime.uploads).toHaveLength(0);
+   });
+ 
++  // unit integration: the real hook must carry library videos into the existing
++  // file queue. Existing picker tests cover only images and document-provider files.
++  it.each(['ios', 'android'])('uploads a mixed photo, MOV and MP4 selection through the legacy fallback on %s', async platform => {
++    runtime.platform = platform;
++    runtime.pickPhotos.mockResolvedValue(null);
++    const upload = vi.fn<NonNullable<UseMobileLocalAttachmentsOptions['upload']>>(async (candidate) => ({ ...candidate, id: candidate.name, path: 'peer-ref', category: 'file', ext: '.mov', mimeType: candidate.mimeType ?? 'application/octet-stream' }));
++    const harness = mount('session-a', upload);
++    // Unknown picker size must be resolved through the existing file stat path.
++    runtime.pickLibrary.mockResolvedValue({ canceled: false, assets: [
++      { type: 'video', uri: 'file:///library/clip.mov', fileName: 'original.MOV', mimeType: 'video/quicktime', fileSize: null },
++      { type: 'video', uri: 'file:///library/clip.mp4', fileName: null, mimeType: 'video/mp4', fileSize: 2000 },
++      { type: 'image', uri: 'file:///library/still.png', fileName: 'still.png', mimeType: 'image/png', fileSize: 1000, width: 32, height: 32 },
++    ] });
++    await act(async () => {
++      await harness.first.addImages('library');
++      expect(harness.latest().hasAttachmentInput()).toBe(true);
++      expect(await harness.latest().waitForPendingUploads()).toEqual({ failedCount: 0, abandoned: false });
++    });
++    expect(runtime.pickLibrary).toHaveBeenCalledWith(expect.objectContaining({
++      mediaTypes: ['images', 'videos'], allowsMultipleSelection: true, selectionLimit: 20,
++      videoExportPreset: 0, preferredAssetRepresentationMode: 'current',
++    }));
++    expect(upload.mock.calls.map(([candidate, uri]) => [candidate.name, candidate.size, candidate.mimeType, uri])).toEqual(expect.arrayContaining([
++      ['original.MOV', 1000, 'video/quicktime', 'file:///library/clip.mov'],
++      ['clip.mp4', 2000, 'video/mp4', 'file:///library/clip.mp4'],
++      ['still.png', 1000, 'image/png', 'file:///library/still.png'],
++    ]));
++    expect(harness.options.onUploaded).toHaveBeenCalledTimes(3);
++    expect(harness.options.onUploaded).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ kind: 'file', name: 'original.MOV' }), expect.any(String));
++    expect(harness.options.onError).not.toHaveBeenCalledWith(expect.any(String), expect.anything());
++    if (platform === 'android') expect(runtime.pickPhotos).not.toHaveBeenCalled();
++  });
++
++  it('limits video selection to the remaining slots shared with files and images', async () => {
++    const harness = mount('session-a');
++    runtime.pickPhotos.mockResolvedValue(null);
++    harness.options.getAttachmentCount = () => 19;
++    harness.rerender('session-a');
++    runtime.pickLibrary.mockResolvedValue({ canceled: false, assets: [
++      { type: 'video', uri: 'file:///clip.mov', fileName: 'clip.mov', fileSize: 1000 },
++      { type: 'video', uri: 'file:///extra.mp4', fileName: 'extra.mp4', fileSize: 1000 },
++    ] });
++    await act(async () => { await harness.first.addImages('library'); });
++    expect(runtime.pickLibrary).toHaveBeenCalledWith(expect.objectContaining({ selectionLimit: 1 }));
++    expect(harness.latest().pendingUploads.map(item => item.name)).toEqual(['clip.mov']);
++    await act(async () => { await harness.latest().addImages('library'); });
++    expect(runtime.pickLibrary).toHaveBeenCalledOnce();
++    expect(harness.options.onError).toHaveBeenLastCalledWith('composer.upload.maxAttachments');
++  });
++
++  it('keeps a failed video in the existing retry queue and handles picker cancellation', async () => {
++    const attachment: RemoteSerializedAttachment = { id: 'clip', name: 'clip.mov', path: 'peer-ref',
++      ext: '.mov', size: 1000, category: 'file', mimeType: 'video/quicktime' };
++    const upload = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(attachment);
++    const harness = mount('session-a', upload);
++    runtime.pickPhotos.mockResolvedValue(null);
++    runtime.pickLibrary.mockResolvedValueOnce({ canceled: true, assets: null });
++    await act(async () => { await harness.first.addImages('library'); });
++    expect(harness.first.hasAttachmentInput()).toBe(false);
++    expect(upload).not.toHaveBeenCalled();
++    runtime.pickLibrary.mockResolvedValueOnce({ canceled: false, assets: [
++      { type: 'video', uri: 'file:///clip.mov', fileName: 'clip.mov', fileSize: 1000, mimeType: 'video/quicktime' },
++    ] });
++    await act(async () => {
++      await harness.first.addImages('library');
++      expect(await harness.latest().waitForPendingUploads()).toEqual({ failedCount: 1, abandoned: false });
++    });
++    expect(harness.latest().pendingUploads).toHaveLength(1);
++    await act(async () => {
++      harness.latest().retryPendingUpload(harness.latest().pendingUploads[0].localId);
++      expect(await harness.latest().waitForPendingUploads()).toEqual({ failedCount: 0, abandoned: false });
++    });
++    expect(harness.options.onUploaded).toHaveBeenCalledWith(attachment, expect.objectContaining({ kind: 'file' }), expect.any(String));
++  });
++
+   it('uses a supplied direct transport while retaining the same picker queue and delivery', async () => {
+     const attachment = { id: 'server-media', name: 'report.pdf', path: '', ext: 'pdf', size: 1000,
+       category: 'file' as const, mimeType: 'application/pdf' };
+
+diff --git a/apps/mobile/src/debug/teammateVisualFixture.ts b/apps/mobile/src/debug/teammateVisualFixture.ts
+@@ -211,7 +211,7 @@ export function teammateVisualFixture(channel: string, args: unknown[], now = FI
+     ref: { collectionId: BOT_GROUP_REMOTE_COLLECTION_ID, kind: BOT_GROUP_REMOTE_RESOURCE_KIND, id: request.ref.id },
+     revision: 'visual-1', display: { title: 'Design review' }, actions: [], links: [],
+     blocks: [{ id: 'chat', primitive: BOT_GROUP_CHAT_PRIMITIVE, fallbackMarkdown: 'Design review', data: {
+-      id: request.ref.id, name: 'Design review',
++      id: request.ref.id, name: 'Design review', supportsAttachments: true,
+       members: ['Aster (Ada)', 'Nova (Leo)', 'Leo', 'Mira (Ada)', 'Orin (Kai)', 'Quill', 'Ada', 'Kai', 'Rhea (Ada)']
+         .map((name, index) => ({ botId: `visual-crowd-${index}`, name, status: 'active' })),
+       messages: [{ id: 'visual-crowd-message', sequence: 1, kind: 'message', authorKind: 'bot', authorBotId: 'visual-crowd-0',
+
+diff --git a/apps/mobile/src/i18n/locales/de/composer.json b/apps/mobile/src/i18n/locales/de/composer.json
+@@ -66,7 +66,7 @@
+     "pasteTimeout": "Zeitüberschreitung beim Einfügen des Bildes. Versuch es erneut.",
+     "clipboardReadFailed": "Das Bild aus der Zwischenablage konnte nicht gelesen werden. Kopiere es erneut und füge es ein.",
+     "maxAttachments": "Füge bis zu {{count}} Anhänge hinzu.",
+-    "simulatorNoCamera": "Der Simulator hat keine Kamera. Wähle über „Fotos“ ein Bild aus der Mediathek.",
++    "simulatorNoCamera": "Der Simulator hat keine Kamera. Verwende „Fotos und Videos“, um Medien aus der Mediathek auszuwählen.",
+     "cameraPermission": "Der Kamerazugriff ist deaktiviert. Erlaube {{appName}} in den Systemeinstellungen den Zugriff auf die Kamera.",
+     "photoPermission": "Der Fotozugriff ist deaktiviert. Erlaube {{appName}} in den Systemeinstellungen den Zugriff auf Fotos.",
+     "noFileRead": "Keine hochladbare Datei gelesen."
+
+diff --git a/apps/mobile/src/i18n/locales/de/session.json b/apps/mobile/src/i18n/locales/de/session.json
+@@ -88,6 +88,7 @@
+     "context": "Kontext",
+     "screenshot": "Screenshot",
+     "photo": "Fotos",
++    "photosAndVideos": "Fotos und Videos",
+     "takePhoto": "Foto aufnehmen",
+     "file": "Datei",
+     "joinConversation": "Zum Chat hinzufügen ({{num}})",
+
+diff --git a/apps/mobile/src/i18n/locales/en/composer.json b/apps/mobile/src/i18n/locales/en/composer.json
+@@ -66,7 +66,7 @@
+     "pasteTimeout": "Pasting the image timed out. Try again.",
+     "clipboardReadFailed": "Could not read the clipboard image. Copy it again and paste.",
+     "maxAttachments": "Add up to {{count}} attachments.",
+-    "simulatorNoCamera": "The simulator has no camera. Use \"Photos\" to pick from the library.",
++    "simulatorNoCamera": "The simulator has no camera. Use \"Photos and videos\" to pick from the library.",
+     "cameraPermission": "Camera access is off. Allow {{appName}} to use the camera in system settings.",
+     "photoPermission": "Photo access is off. Allow {{appName}} to access photos in system settings.",
+     "noFileRead": "No uploadable file was read."
+
+diff --git a/apps/mobile/src/i18n/locales/en/session.json b/apps/mobile/src/i18n/locales/en/session.json
+@@ -88,6 +88,7 @@
+     "context": "Context",
+     "screenshot": "Screenshot",
+     "photo": "Photos",
++    "photosAndVideos": "Photos and videos",
+     "takePhoto": "Take Photo",
+     "file": "File",
+     "joinConversation": "Add to chat ({{num}})",
+
+diff --git a/apps/mobile/src/i18n/locales/es/composer.json b/apps/mobile/src/i18n/locales/es/composer.json
+@@ -66,7 +66,7 @@
+     "pasteTimeout": "Se agotó el tiempo de pegado de la imagen. Intentar otra vez.",
+     "clipboardReadFailed": "No se pudo leer la imagen del portapapeles. Cópialo nuevamente y pégalo.",
+     "maxAttachments": "Agregue hasta archivos adjuntos {{count}}.",
+-    "simulatorNoCamera": "El simulador no tiene cámara. Utilice \"Fotos\" para elegir de la biblioteca.",
++    "simulatorNoCamera": "El simulador no tiene cámara. Usa «Fotos y vídeos» para elegir contenido de la biblioteca.",
+     "cameraPermission": "El acceso a la cámara está desactivado. Permita que {{appName}} use la cámara en la configuración del sistema.",
+     "photoPermission": "El acceso a fotografías está desactivado. Permita que {{appName}} acceda a las fotos en la configuración del sistema.",
+     "noFileRead": "No se leyó ningún archivo cargable."
+
+diff --git a/apps/mobile/src/i18n/locales/es/session.json b/apps/mobile/src/i18n/locales/es/session.json
+@@ -88,6 +88,7 @@
+     "context": "Contexto",
+     "screenshot": "Captura de pantalla",
+     "photo": "Fotos",
++    "photosAndVideos": "Fotos y vídeos",
+     "takePhoto": "Tomar foto",
+     "file": "Archivo",
+     "joinConversation": "Añadir al chat ({{num}})",
+
+diff --git a/apps/mobile/src/i18n/locales/fr/composer.json b/apps/mobile/src/i18n/locales/fr/composer.json
+@@ -66,7 +66,7 @@
+     "pasteTimeout": "Le collage de l'image a expiré. Réessayez.",
+     "clipboardReadFailed": "Impossible de lire l'image du presse-papiers. Copiez-la à nouveau et collez-la.",
+     "maxAttachments": "Ajoutez jusqu'à {{count}} pièces jointes.",
+-    "simulatorNoCamera": "Le simulateur n'a pas d'appareil photo. Utilisez « Photos » pour choisir dans la photothèque.",
++    "simulatorNoCamera": "Le simulateur n’a pas d’appareil photo. Utilisez « Photos et vidéos » pour choisir dans la photothèque.",
+     "cameraPermission": "L'accès à l'appareil photo est désactivé. Autorisez {{appName}} à utiliser l'appareil photo dans les réglages du système.",
+     "photoPermission": "L'accès aux photos est désactivé. Autorisez {{appName}} à accéder aux photos dans les réglages du système.",
+     "noFileRead": "Aucun fichier envoyable n'a été lu."
+
+diff --git a/apps/mobile/src/i18n/locales/fr/session.json b/apps/mobile/src/i18n/locales/fr/session.json
+@@ -88,6 +88,7 @@
+     "context": "Contexte",
+     "screenshot": "Capture d'écran",
+     "photo": "Photos",
++    "photosAndVideos": "Photos et vidéos",
+     "takePhoto": "Prendre une photo",
+     "file": "Fichier",
+     "joinConversation": "Ajouter à la conversation ({{num}})",
+
+diff --git a/apps/mobile/src/i18n/locales/ja/composer.json b/apps/mobile/src/i18n/locales/ja/composer.json
+@@ -66,7 +66,7 @@
+     "pasteTimeout": "画像の貼り付け処理がタイムアウトしました。もう一度お試しください。",
+     "clipboardReadFailed": "クリップボードの画像を読み取れませんでした。もう一度コピーしてから貼り付けてください。",
+     "maxAttachments": "添付ファイルは最大 {{count}} 件まで追加できます。",
+-    "simulatorNoCamera": "シミュレーターにはカメラがありません。「写真」からライブラリを選択してください。",
++    "simulatorNoCamera": "シミュレーターにはカメラがありません。「写真と動画」からライブラリを選択してください。",
+     "cameraPermission": "カメラのアクセスがオフです。システム設定で {{appName}} にカメラの使用を許可してください。",
+     "photoPermission": "写真のアクセスがオフです。システム設定で {{appName}} に写真へのアクセスを許可してください。",
+     "noFileRead": "アップロードできるファイルを読み取れませんでした。"
+
+diff --git a/apps/mobile/src/i18n/locales/ja/session.json b/apps/mobile/src/i18n/locales/ja/session.json
+@@ -88,6 +88,7 @@
+     "context": "コンテキスト",
+     "screenshot": "スクリーンショット",
+     "photo": "写真",
++    "photosAndVideos": "写真と動画",
+     "takePhoto": "写真を撮る",
+     "file": "ファイル",
+     "joinConversation": "会話に追加（{{num}} 枚）",
+
+diff --git a/apps/mobile/src/i18n/locales/ko/composer.json b/apps/mobile/src/i18n/locales/ko/composer.json
+@@ -66,7 +66,7 @@
+     "pasteTimeout": "이미지 붙여넣기 처리 시간이 초과되었습니다. 다시 시도하세요.",
+     "clipboardReadFailed": "클립보드 이미지를 읽지 못했습니다. 다시 복사한 후 붙여넣으세요.",
+     "maxAttachments": "첨부 파일은 최대 {{count}}개까지 추가할 수 있습니다.",
+-    "simulatorNoCamera": "시뮬레이터에는 카메라가 없습니다. \"사진\"에서 라이브러리를 선택하세요.",
++    "simulatorNoCamera": "시뮬레이터에는 카메라가 없습니다. \"사진 및 동영상\"에서 라이브러리를 선택하세요.",
+     "cameraPermission": "카메라 접근이 꺼져 있습니다. 시스템 설정에서 {{appName}}의 카메라 사용을 허용하세요.",
+     "photoPermission": "사진 접근이 꺼져 있습니다. 시스템 설정에서 {{appName}}의 사진 접근을 허용하세요.",
+     "noFileRead": "업로드할 파일을 읽지 못했습니다."
+
+diff --git a/apps/mobile/src/i18n/locales/ko/session.json b/apps/mobile/src/i18n/locales/ko/session.json
+@@ -88,6 +88,7 @@
+     "context": "컨텍스트",
+     "screenshot": "스크린샷",
+     "photo": "사진",
++    "photosAndVideos": "사진 및 동영상",
+     "takePhoto": "사진 촬영",
+     "file": "파일",
+     "joinConversation": "대화에 추가 ({{num}}장)",
+
+diff --git a/apps/mobile/src/i18n/locales/pt-BR/composer.json b/apps/mobile/src/i18n/locales/pt-BR/composer.json
+@@ -66,7 +66,7 @@
+     "pasteTimeout": "O tempo para colar a imagem esgotou. Tente novamente.",
+     "clipboardReadFailed": "Não foi possível ler a imagem da área de transferência. Copie-a novamente e cole.",
+     "maxAttachments": "Adicione até {{count}} anexos.",
+-    "simulatorNoCamera": "O simulador não tem câmera. Use \"Fotos\" para escolher da biblioteca.",
++    "simulatorNoCamera": "O simulador não tem câmera. Use «Fotos e vídeos» para escolher na galeria.",
+     "cameraPermission": "O acesso à câmera está desativado. Permita que {{appName}} use a câmera nas configurações do sistema.",
+     "photoPermission": "O acesso às fotos está desativado. Permita que {{appName}} acesse as fotos nas configurações do sistema.",
+     "noFileRead": "Nenhum arquivo que possa ser enviado foi lido."
+
+diff --git a/apps/mobile/src/i18n/locales/pt-BR/session.json b/apps/mobile/src/i18n/locales/pt-BR/session.json
+@@ -88,6 +88,7 @@
+     "context": "Contexto",
+     "screenshot": "Captura de tela",
+     "photo": "Fotos",
++    "photosAndVideos": "Fotos e vídeos",
+     "takePhoto": "Tirar foto",
+     "file": "Arquivo",
+     "joinConversation": "Adicionar à conversa ({{num}})",
+
+diff --git a/apps/mobile/src/i18n/locales/pt-PT/composer.json b/apps/mobile/src/i18n/locales/pt-PT/composer.json
+@@ -66,7 +66,7 @@
+     "pasteTimeout": "A colagem da imagem excedeu o tempo limite. Tente novamente.",
+     "clipboardReadFailed": "Não foi possível ler a imagem da área de transferência. Copie-a novamente e cole.",
+     "maxAttachments": "Adicione até {{count}} anexos.",
+-    "simulatorNoCamera": "O simulador não tem câmara. Utilize \"Fotografias\" para selecionar na biblioteca.",
++    "simulatorNoCamera": "O simulador não tem câmara. Use «Fotografias e vídeos» para selecionar na galeria.",
+     "cameraPermission": "O acesso à câmara está desativado. Permita que {{appName}} utilize a câmara nas definições do sistema.",
+     "photoPermission": "O acesso às fotografias está desativado. Permita que {{appName}} aceda às fotografias nas definições do sistema.",
+     "noFileRead": "Não foi lido nenhum ficheiro que possa ser carregado."
+
+diff --git a/apps/mobile/src/i18n/locales/pt-PT/session.json b/apps/mobile/src/i18n/locales/pt-PT/session.json
+@@ -88,6 +88,7 @@
+     "context": "Contexto",
+     "screenshot": "Captura de ecrã",
+     "photo": "Fotografias",
++    "photosAndVideos": "Fotografias e vídeos",
+     "takePhoto": "Tirar fotografia",
+     "file": "Ficheiro",
+     "joinConversation": "Adicionar à conversa ({{num}})",
+
+diff --git a/apps/mobile/src/i18n/locales/zh-CN/composer.json b/apps/mobile/src/i18n/locales/zh-CN/composer.json
+@@ -66,7 +66,7 @@
+     "pasteTimeout": "粘贴图片处理超时，请重试。",
+     "clipboardReadFailed": "剪贴板图片读取失败，请重新复制后再粘贴。",
+     "maxAttachments": "最多添加 {{count}} 个附件。",
+-    "simulatorNoCamera": "模拟器没有相机，请用「照片」从相册选择。",
++    "simulatorNoCamera": "模拟器没有相机，请用「照片与视频」从相册选择。",
+     "cameraPermission": "相机权限未开启，请在系统设置里允许 {{appName}} 使用相机。",
+     "photoPermission": "照片权限未开启，请在系统设置里允许 {{appName}} 访问照片。",
+     "noFileRead": "没有读取到可上传的文件。"
+
+diff --git a/apps/mobile/src/i18n/locales/zh-CN/session.json b/apps/mobile/src/i18n/locales/zh-CN/session.json
+@@ -88,6 +88,7 @@
+     "context": "上下文",
+     "screenshot": "截图",
+     "photo": "照片",
++    "photosAndVideos": "照片与视频",
+     "takePhoto": "拍照",
+     "file": "文件",
+     "joinConversation": "加入对话（{{num}} 张）",
+
+diff --git a/apps/mobile/src/i18n/locales/zh-Hans-x-lzh/composer.json b/apps/mobile/src/i18n/locales/zh-Hans-x-lzh/composer.json
+@@ -66,7 +66,7 @@
+     "pasteTimeout": "贴图处理逾时，请再试。",
+     "clipboardReadFailed": "剪贴板之图读取未成，请重录后再贴。",
+     "maxAttachments": "至多加 {{count}} 个附件。",
+-    "simulatorNoCamera": "模拟器无相机，请用「照片」自相册择之。",
++    "simulatorNoCamera": "模拟器无相机。请由「照片与视频」择取。",
+     "cameraPermission": "相机权限未开，请于系统设置中允许 {{appName}} 使用相机。",
+     "photoPermission": "照片权限未开，请于系统设置中允许 {{appName}} 访问照片。",
+     "noFileRead": "未读得可上传之卷。"
+
+diff --git a/apps/mobile/src/i18n/locales/zh-Hans-x-lzh/session.json b/apps/mobile/src/i18n/locales/zh-Hans-x-lzh/session.json
+@@ -88,6 +88,7 @@
+     "context": "上下文",
+     "screenshot": "截图",
+     "photo": "照片",
++    "photosAndVideos": "照片与视频",
+     "takePhoto": "摄影",
+     "file": "卷",
+     "joinConversation": "纳入言谈（{{num}} 张）",
+
+diff --git a/apps/mobile/src/i18n/locales/zh-Hant-x-lzh/composer.json b/apps/mobile/src/i18n/locales/zh-Hant-x-lzh/composer.json
+@@ -66,7 +66,7 @@
+     "pasteTimeout": "貼圖處理逾時，請再試。",
+     "clipboardReadFailed": "剪貼簿之圖讀取未成，請重錄後再貼。",
+     "maxAttachments": "至多加 {{count}} 個附件。",
+-    "simulatorNoCamera": "模擬器無相機，請用「照片」自相簿擇之。",
++    "simulatorNoCamera": "模擬器無相機。請由「照片與影片」擇取。",
+     "cameraPermission": "相機權限未開，請於系統設定中允許 {{appName}} 使用相機。",
+     "photoPermission": "照片權限未開，請於系統設定中允許 {{appName}} 存取照片。",
+     "noFileRead": "未讀得可上傳之卷。"
+
+diff --git a/apps/mobile/src/i18n/locales/zh-Hant-x-lzh/session.json b/apps/mobile/src/i18n/locales/zh-Hant-x-lzh/session.json
+@@ -88,6 +88,7 @@
+     "context": "上下文",
+     "screenshot": "截圖",
+     "photo": "照片",
++    "photosAndVideos": "照片與影片",
+     "takePhoto": "攝影",
+     "file": "卷",
+     "joinConversation": "納入言談（{{num}} 張）",
+
+diff --git a/apps/mobile/src/i18n/locales/zh-TW/composer.json b/apps/mobile/src/i18n/locales/zh-TW/composer.json
+@@ -66,7 +66,7 @@
+     "pasteTimeout": "貼上圖片處理超時，請重試。",
+     "clipboardReadFailed": "剪貼簿圖片讀取失敗，請重新複製後再貼上。",
+     "maxAttachments": "最多新增 {{count}} 個附件。",
+-    "simulatorNoCamera": "模擬器沒有相機，請用「照片」從相簿選擇。",
++    "simulatorNoCamera": "模擬器沒有相機，請用「照片與影片」從相簿選擇。",
+     "cameraPermission": "相機權限未開啟，請在系統設定裡允許 {{appName}} 使用相機。",
+     "photoPermission": "照片權限未開啟，請在系統設定裡允許 {{appName}} 訪問照片。",
+     "noFileRead": "沒有讀取到可上傳的檔案。"
+
+diff --git a/apps/mobile/src/i18n/locales/zh-TW/session.json b/apps/mobile/src/i18n/locales/zh-TW/session.json
+@@ -88,6 +88,7 @@
+     "context": "上下文",
+     "screenshot": "截圖",
+     "photo": "照片",
++    "photosAndVideos": "照片與影片",
+     "takePhoto": "拍照",
+     "file": "檔案",
+     "joinConversation": "加入對話（{{num}} 張）",
+
+diff --git a/apps/mobile/src/session/BotGroupComposer.tsx b/apps/mobile/src/session/BotGroupComposer.tsx
+@@ -6,7 +6,7 @@
+  * 文字、同一批点名目标、同一个「分工」标签、同一批附件重发沿用同一个 clientId。一轮进行中输入框为空且没有
+  * 附件时，发送按钮变成停止；否则照常发送（插话本身就会作废当前一轮）。
+  *
+- * 附件与一对一聊天同一套（照片、拍照、文件、iOS 最近照片、粘贴图片，见
++ * 附件与一对一聊天同一套（照片与视频、拍照、文件、iOS 最近照片、粘贴图片，见
+  * useBotGroupComposerAttachments）：电脑声明 `supportsAttachments` 且在线时，「+」打开与任务
+  * 输入框相同的面板；旧电脑会丢掉附件，「+」保持原来的小菜单。附件托盘在输入框聚焦时显示在
+  * 卡片里，收起时是一枚小徽标（与会话页一致）。附件只在发出成功后离开托盘。
+@@ -425,7 +425,7 @@ export function BotGroupComposer({
+       {attachmentsEnabled ? <ContextSheetGroup label={Platform.OS === 'ios' && mediaLibraryEnabled ? '' : t('session.common.groupAdd')}>
+         <ContextSheetRow dismissBeforePress
+           icon={<ImageIcon color={colors.textPrimary} size={iconSize.lg} strokeWidth={iconStroke.regular} />}
+-          label={t('session.common.photo')} onPress={() => void tray.addImages('library')} testID="botGroup.contextSheetPhotoRow" />
++          label={t('session.common.photosAndVideos')} onPress={() => void tray.addImages('library')} testID="botGroup.contextSheetPhotoRow" />
+         <ContextSheetRow dismissBeforePress
+           icon={<Camera color={colors.textPrimary} size={iconSize.lg} strokeWidth={iconStroke.regular} />}
+           label={t('session.common.takePhoto')} onPress={() => void tray.addImages('camera')} testID="botGroup.contextSheetCameraRow" />
+
+diff --git a/apps/mobile/src/session/deferredPhotoLibrary.ts b/apps/mobile/src/session/deferredPhotoLibrary.ts
+@@ -6,24 +6,26 @@ interface PhotoSelection {
+   id: string;
+   name: string;
+   previewUri: string;
++  mediaType?: 'image' | 'video';
+   width?: number;
+   height?: number;
+ }
+ 
+ interface DeferredPhotoPicker {
+   pick(limit: number): Promise<PhotoSelection[]>;
++  pickMedia?: (limit: number) => Promise<PhotoSelection[]>;
+   load(id: string): Promise<MobileImagePickerAssetLike>;
+   cancel(id: string): Promise<void>;
+   release(id: string): Promise<void>;
+ }
+ 
+-function throwLocalizedPhotoError(error: unknown): never {
++function throwLocalizedPhotoError(error: unknown, isVideo = false): never {
+   const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+   // Native/provider messages can use the OS language and contain internal file
+   // paths. Only translate this boundary, preserving downstream conversion errors.
+   throw new Error(i18n.t(code === 'ERR_PHOTO_CANCELLED'
+     ? 'composer.upload.cancelled'
+-    : 'composer.upload.noImageRead'), { cause: error });
++    : isVideo ? 'composer.upload.noFileRead' : 'composer.upload.noImageRead'), { cause: error });
+ }
+ 
+ async function cleanupLocalUris(uris: readonly string[]): Promise<void> {
+@@ -42,18 +44,21 @@ export async function pickDeferredLibraryPhotos(
+ ): Promise<MobileLocalAttachmentUploadCandidate[] | null> {
+   const { requireOptionalNativeModule } = await import('expo-modules-core');
+   const native = requireOptionalNativeModule<DeferredPhotoPicker>('CindyPhotoPicker');
+-  if (!native) return null;
+-  const selected = await native.pick(limit).catch(throwLocalizedPhotoError);
++  // Older native binaries cannot mix videos. Use the existing Expo picker there
++  // instead of silently showing a photos-only picker under the combined label.
++  if (!native?.pickMedia) return null;
++  const selected = await native.pickMedia(limit).catch((error) => throwLocalizedPhotoError(error));
+   return selected.map((photo, index) => {
++    const isVideo = photo.mediaType === 'video';
+     let released = false;
+     const release = () => {
+       if (released) return;
+       released = true;
+       void native.release(photo.id).catch(() => undefined);
+     };
+     return {
+-      kind: 'image',
+-      uri: photo.previewUri,
++      kind: isVideo ? 'file' : 'image',
++      uri: isVideo ? '' : photo.previewUri,
+       name: photo.name,
+       size: 0,
+       width: photo.width,
+@@ -64,13 +69,18 @@ export async function pickDeferredLibraryPhotos(
+       resolve: async (signal?: AbortSignal) => {
+         if (signal?.aborted || released) throw new Error(i18n.t('composer.upload.cancelled'));
+         const cancel = () => { void native.cancel(photo.id).catch(() => undefined); };
+-        const loaded = native.load(photo.id).catch(throwLocalizedPhotoError);
++        const loaded = native.load(photo.id).catch((error) => throwLocalizedPhotoError(error, isVideo));
+         signal?.addEventListener('abort', cancel, { once: true });
+         let uri: string | undefined;
+         try {
+           const asset = await loaded;
+           uri = asset.uri ?? undefined;
+           if (signal?.aborted || released) throw new Error(i18n.t('composer.upload.cancelled'));
++          if (isVideo) {
++            if (!uri) throw new Error(i18n.t('composer.upload.noFileRead'));
++            return { uri, name: asset.fileName?.trim() || photo.name,
++              size: asset.fileSize ?? 0, mimeType: asset.mimeType || undefined };
++          }
+           const candidate = buildMobileImageAttachmentCandidate({ ...photo, ...asset }, index);
+           if (!candidate.resolve) return candidate;
+           const converted = await candidate.resolve();
+
+diff --git a/apps/mobile/src/session/useMobileLocalAttachments.ts b/apps/mobile/src/session/useMobileLocalAttachments.ts
+@@ -22,7 +22,6 @@ import * as FileSystem from 'expo-file-system/legacy';
+ import { retainComposerAttachmentFile } from './durableOutboxFiles';
+ import * as ImagePicker from 'expo-image-picker';
+ import { formatRemoteError } from '@/device-link/remoteStatus';
+-import { canBrowsePhotoLibraryDirectly } from '@/session/photoLibraryPolicy';
+ import { pickDeferredLibraryPhotos } from '@/session/deferredPhotoLibrary';
+ import {
+   MOBILE_MAX_ATTACHMENTS,
+@@ -468,15 +467,11 @@ export function useMobileLocalAttachments(
+         optionsRef.current.onError(t('composer.upload.simulatorNoCamera'));
+         return;
+       }
+-      if (source === 'camera' || canBrowsePhotoLibraryDirectly(Platform.OS)) {
+-        const permission = source === 'camera'
+-          ? await ImagePicker.requestCameraPermissionsAsync()
+-          : await ImagePicker.requestMediaLibraryPermissionsAsync(false);
++      if (source === 'camera') {
++        const permission = await ImagePicker.requestCameraPermissionsAsync();
+         if (!isAttachmentScopeActive()) return;
+         if (!permission.granted) {
+-          optionsRef.current.onError(source === 'camera'
+-            ? t('composer.upload.cameraPermission')
+-            : t('composer.upload.photoPermission'));
++          optionsRef.current.onError(t('composer.upload.cameraPermission'));
+           return;
+         }
+       }
+@@ -506,7 +501,9 @@ export function useMobileLocalAttachments(
+         })
+         : await ImagePicker.launchImageLibraryAsync({
+           allowsMultipleSelection: true,
+-          mediaTypes: ['images'],
++          mediaTypes: ['images', 'videos'],
++          videoExportPreset: ImagePicker.VideoExportPreset.Passthrough,
++          preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Current,
+           orderedSelection: true,
+           quality: 1,
+           selectionLimit: begun.remainingSlots,
+@@ -516,7 +513,14 @@ export function useMobileLocalAttachments(
+ 
+       const candidates: MobileLocalAttachmentUploadCandidate[] = picked.assets
+         .slice(0, begun.remainingSlots)
+-        .map((asset, index) => ({ kind: 'image', ...buildMobileImageAttachmentCandidate(asset, index) }));
++        .map((asset, index) => {
++          if (asset.type !== 'video') return { kind: 'image', ...buildMobileImageAttachmentCandidate(asset, index) };
++          const uri = asset.uri.trim();
++          if (!uri) throw new Error(t('composer.upload.noFileRead'));
++          return { kind: 'file', uri,
++            name: asset.fileName?.trim() || uri.split('/').pop()?.split(/[?#]/)[0] || `video-${index + 1}`,
++            size: asset.fileSize ?? 0, mimeType: asset.mimeType || undefined };
++        });
+       if (candidates.length === 0 || !isAttachmentScopeActive()) return;
+       // 立即入 pending 托盘(不先 await token):token 等待窗里任务已可被 waitForIdle 看到,
+       // composer 抢发会等它落定而不是丢图;token 由任务开跑时自行等待(拿不到→该任务失败报错)。
+
+diff --git a/docs/dev-rules/mobile-development.md b/docs/dev-rules/mobile-development.md
+@@ -169,6 +169,23 @@ iOS 的系统选图器在确认后立即把选中项交给现有附件队列。
+ 独立交付；旧原生包缺模块时继续使用 Expo 选图入口。首次发布应随下一次 iOS 原生包交付，
+ 指纹与存量装机影响仍须按下文冷更门确认。Android 保持系统选图器和既有附件队列。
+ 
++### 相册照片与视频附件
++
++新建任务、已有任务及群聊的「+」面板使用单个「照片与视频」入口，支持同批混选。
++iOS 的 `CindyPhotoPicker.pickMedia` 在选择后立即把图片占位与视频文件交给现有附件队列；
++原图／视频字节在 resolve 阶段读取，沿用 iCloud 下载、取消、重试和发件箱交接。
++视频按文件上传，不经过图片转换或压缩；Live Photo 维持静态图片路径。仅使用选择器的访问授权，
++不为混选扩大相册权限；最近照片条的既有授权流程保持不变。数量与传输体积规则沿用普通附件。
++
++旧原生包缺 `pickMedia`（包括只有 `pick` 的包）时，回退 Expo 混合选择器，避免统一入口只能选照片。
++此回退在选择器内等原件就绪；新原生包保留延迟读取体验。原有 `pick` 方法继续提供照片选择合同，
++拍照仍仅拍照片，「文件」继续接收视频，不新增录像或专用视频编辑器。
++扩展原生模块会改变 iOS fingerprint，需随原生包发布，不能作为旧安装包的独立 OTA 交付；
++合并前遵守冷更确认门。Android 使用现有 Expo 系统混合选择器，无原生改动。
++
++实现：`modules/cindy-photo-picker/`、`deferredPhotoLibrary.ts`、`useMobileLocalAttachments.ts`；
++回归：`deferredPhotoLibrary.test.ts`、`useMobileLocalAttachmentsAbandon.test.tsx`。
++
+ ### 已发送图片的离线读取
+ 
+ 相册、粘贴及后台发件箱共用 `uploadMobileAttachmentFromFile`：上传成功后、删除上传快照前，
+
+diff --git a/docs/product-rules/bot-group-chat.md b/docs/product-rules/bot-group-chat.md
+@@ -98,7 +98,7 @@
+ 
+ 群里和普通聊天一样可以带图片、文件、视频；群聊不因为是群就少掉普通聊天已有的输入能力。
+ 
+-- 入口与普通聊天一致：电脑上「+」→「添加文件、图片或视频…」、粘贴、拖入；手机上「+」里的照片、拍照、
++- 入口与普通聊天一致：电脑上「+」→「添加文件、图片或视频…」、粘贴、拖入；手机上「+」里的「照片与视频」（支持混选）、拍照、
+   文件（iOS 有最近照片），以及粘贴图片。一条消息最多 20 个附件；有附件时可以不写字。
+ - 附件属于用户那条消息：早期本地群使用 `bot_group_messages.attachments_json`，正式服务器群使用消息 content 中的 media 块。
+   时间线里显示图片缩略图和文件名。

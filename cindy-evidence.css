@@ -1,0 +1,43 @@
+.real-evidence-set{margin:30px 0 24px}.evidence-overline{font:11px/1.5 var(--mono);letter-spacing:.08em;color:var(--accent-text)}.detail-section .real-evidence{margin:18px 0 28px}.real-evidence>a{display:block;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}.real-evidence img{display:block;width:100%;height:auto;max-width:100%}.real-evidence figcaption{display:grid;gap:9px;padding-top:13px;font:12px/1.8 var(--sans);color:var(--muted)}.real-evidence figcaption b{font-size:14px;font-weight:500;color:var(--fg)}.real-evidence figcaption a{width:fit-content}.real-code{margin:20px 0;border-block:1px solid var(--line);padding:17px 0;min-width:0}.real-code summary{cursor:pointer;font-size:14px;font-weight:500;line-height:1.7}.real-code[open] summary{margin-bottom:20px;color:var(--accent-text)}.real-code p,.real-code>a{font-size:12px!important}.code-source-path{overflow-wrap:anywhere}.real-code pre{max-width:100%;overflow:auto;padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:8px;font:12px/1.8 var(--mono);tab-size:2;white-space:pre-wrap;overflow-wrap:anywhere}.real-evidence-note{font-size:12px!important;color:var(--muted);line-height:1.85;margin-top:18px!important}@media(max-width:640px){.real-code pre{padding:12px;font-size:11px}.real-evidence figcaption{font-size:12px}}
+
+/* Independent work retains equal headings; shorter scope changes length, not hierarchy. */
+.independent-case>dl{margin:24px 0}.independent-case>dl>dt{font-size:13px;color:var(--accent-text);margin:20px 0 8px}.independent-case>dl>dd{margin:0;font-size:15px;line-height:1.9}.interaction-updates{margin-top:48px;padding-top:28px;border-top:1px solid var(--line);scroll-margin-top:130px}.interaction-updates>h3{font-size:24px}.interaction-cluster{margin-top:34px}.interaction-cluster>h4{font:11px/1.6 var(--mono);letter-spacing:.06em;color:var(--accent-text);margin:0 0 18px}.interaction-item{padding:22px 0;border-top:1px solid var(--line)}.pr-state{font:11px/1.6 var(--sans);color:var(--muted);flex-shrink:0}.interaction-item>p{font-size:15px!important;line-height:1.9}.interaction-pr-link{font-size:12px}.interaction-item .real-evidence{margin-top:22px}.mechanism-model{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;padding:20px 0;border-block:1px solid var(--line);margin:24px 0}.mechanism-model b{font-size:14px}.mechanism-model p{font-size:13px!important;color:var(--muted);margin-top:8px}@media(max-width:640px){.pr-state{display:block;margin-bottom:12px}.mechanism-model{grid-template-columns:1fr}.independent-work>h3{font-size:22px}}
+
+.independent-case{scroll-margin-top:32px}@media(max-width:640px){.independent-case{scroll-margin-top:130px}}
+
+/* Native disclosure markers match the other case-study disclosures. */
+.interaction-overview{font:600 22px/1.6 var(--sans);padding:8px 0}
+.interaction-count{font:12px/1.6 var(--sans);color:var(--muted);margin-left:12px;white-space:nowrap}
+.interaction-list{margin-top:24px}.interaction-item{margin:0;padding:0}
+.interaction-heading{padding:17px 0;margin:0;font:500 16px/1.65 var(--sans)}
+.interaction-title{display:inline;font:inherit}.interaction-heading .pr-state{display:inline;margin:0 0 0 12px;font-size:11px}
+.interaction-body{padding:4px 0 18px}.interaction-body>p{font-size:15px!important;line-height:1.9}
+.interaction-cluster>h4{margin-bottom:14px}.interaction-body .real-code:last-child{margin-bottom:0}
+.interaction-overview,.interaction-heading,.current-client-reference>summary,.real-code>summary,.workstream-extra>summary{display:list-item;list-style-type:disclosure-closed;list-style-position:inside;cursor:pointer}
+.interaction-updates[open]>.interaction-overview,.interaction-item[open]>.interaction-heading,.current-client-reference[open]>summary,.real-code[open]>summary,.workstream-extra[open]>summary{list-style-type:disclosure-open}
+.interaction-overview::marker,.interaction-heading::marker,.current-client-reference>summary::marker,.real-code>summary::marker,.workstream-extra>summary::marker{color:var(--accent-text);font-size:.85em}
+.interaction-overview:focus-visible,.interaction-heading:focus-visible,.current-client-reference>summary:focus-visible,.real-code>summary:focus-visible,.workstream-extra>summary:focus-visible{outline:2px solid var(--pink-outline);outline-offset:4px;border-radius:2px}
+@media(max-width:640px){.interaction-overview{font-size:20px}.interaction-heading{font-size:15px}.interaction-count{font-size:11px;margin-left:10px}}
+
+.ui-shot{display:block;position:relative;line-height:0}.ui-shot img{display:block;width:100%;height:auto}.ui-highlight{position:absolute;box-sizing:border-box;border:2px solid #ad536f;border-radius:5px;background:rgba(252,136,174,.055);pointer-events:none}.ui-highlight i{position:absolute;left:-9px;top:-9px;min-width:18px;height:18px;padding:0 3px;box-sizing:border-box;border-radius:50%;background:#ad536f;color:#fff;font:600 11px/18px var(--sans);text-align:center;font-style:normal}.ui-legend{padding-left:1.8em;margin:8px 0 0;font-size:12px;line-height:1.8}.real-evidence figcaption small{font-size:11px;line-height:1.7;color:var(--muted)}.current-client-reference{border-top:1px solid var(--line);padding:18px 0;margin:22px 0}.current-client-reference>summary{font-size:13px;cursor:pointer;color:var(--accent-text)}@media(max-width:640px){.ui-highlight{border-width:1.5px}.ui-highlight i{font-size:9px;line-height:15px;height:15px;min-width:15px;left:-7px;top:-7px}}
+
+/* Page chapters → work categories → individual cases → evidence/utilities. */
+[data-case=cindy] .detail-label{display:flex;align-items:center;gap:10px;font:500 11px/1.6 var(--mono);letter-spacing:.045em;margin-bottom:14px}
+.chapter-number{font-size:10px;letter-spacing:.08em;color:var(--muted)}
+[data-case=cindy] .detail-section>h2{font-size:clamp(27px,2.6vw,34px);line-height:1.4;letter-spacing:-.03em;margin-bottom:26px}
+[data-case=cindy] .workstream-group{margin-top:64px;padding-top:32px;border-top:1px solid var(--line-strong)}
+[data-case=cindy] .workstream-group>.workstream-heading{display:flex;align-items:flex-start;gap:14px;font:600 25px/1.5 var(--sans);margin:0 0 18px;letter-spacing:-.02em}
+.workstream-badge{display:inline-flex;align-items:center;justify-content:center;flex:0 0 30px;height:30px;margin-top:3px;border:1px solid var(--pink-outline);border-radius:6px;background:var(--pink-soft);color:var(--accent-text);font:500 13px/1 var(--mono);letter-spacing:0}
+[data-case=cindy] .work-case{margin-top:32px;padding-top:25px;border-top:1px solid var(--line)}
+[data-case=cindy] .work-case>h4{font:600 19px/1.65 var(--sans);letter-spacing:-.01em;margin:0 0 12px}
+[data-case=cindy] .work-case-deck{font-size:14px!important;line-height:1.8;color:var(--muted);margin-bottom:20px}
+[data-case=cindy] .interaction-overview{font:600 16px/1.8 var(--sans);padding:4px 0}
+[data-case=cindy] .interaction-updates{margin-top:40px;padding-top:22px}
+[data-case=cindy] .interaction-cluster>h4{font:500 12px/1.7 var(--sans);color:var(--accent-text);letter-spacing:.02em}
+[data-case=cindy] .interaction-heading{font:500 15px/1.7 var(--sans)}
+[data-case=cindy] .real-code>summary,[data-case=cindy] .current-client-reference>summary{font:500 13px/1.75 var(--sans)}
+[data-case=cindy] .workstream-extra>summary{font:500 14px/1.75 var(--sans)}
+@media(max-width:640px){[data-case=cindy] .detail-section>h2{font-size:26px}[data-case=cindy] .workstream-group{margin-top:48px;padding-top:26px}[data-case=cindy] .workstream-group>.workstream-heading{font-size:22px;gap:11px}.workstream-badge{flex-basis:26px;height:26px;margin-top:3px;font-size:12px}[data-case=cindy] .work-case>h4{font-size:18px}[data-case=cindy] .interaction-overview{font-size:16px}}
+
+.project-repository{max-width:100%;margin:22px 0 0!important;font:13px/1.8 var(--sans)}.project-repository a{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;color:var(--accent-text);padding-bottom:4px}.repository-name{color:var(--muted);font-size:12px}
+.ui-highlight{border-color:var(--accent-text);background:rgba(252,136,174,.18)}.ui-highlight i{background:var(--accent-text)}
